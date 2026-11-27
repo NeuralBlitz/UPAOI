@@ -25,3 +25,6 @@ jobs:
           python -m nb_orchestrator.cli agents --db :memory:
       - name: Compile Python modules
         run: python -m compileall -q src tests
+      - name: Synthetic M3 provider preflight (offline)
+        run: |
+          python -m nb_orchestrator.cli preflight --fixture --repo NeuralBlitz/UPAOI --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd

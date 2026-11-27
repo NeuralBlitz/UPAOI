@@ -126,3 +126,24 @@ The anchor is only useful against rollback when retained outside the host,
 backed by an independently controlled retention policy, and protected from the
 signing-key holder. See `docs/internal-alpha-gates.md`. No cloud anchor, IdP
 registration or live external connector smoke test is included in this build.
+
+
+## M3 read-only identity/provider preflight (v0.4.2)
+
+A synthetic smoke test is safe to run without any credentials:
+
+```bash
+upaoi preflight --fixture --repo NeuralBlitz/UPAOI --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd
+```
+
+This returns `SIMULATED_ONLY` and **must not** be described as a live provider
+success. For a deliberately configured real smoke test, an operator must supply
+`UPAOI_OIDC_ISSUER`, `UPAOI_OIDC_AUDIENCE`, `UPAOI_OIDC_JWKS_JSON`,
+`UPAOI_TENANT_ID`, `UPAOI_OIDC_TEST_ACCESS_TOKEN`, `UPAOI_ALLOWED_REPO`,
+`UPAOI_ALLOWED_NOTION_PAGE`, `UPAOI_GITHUB_TOKEN` and `UPAOI_NOTION_TOKEN`
+through a protected runtime secret manager. Then run `upaoi preflight` without
+CLI-supplied resource flags. It verifies the bearer token against operator-pinned
+JWKS, enforces tenant and two read scopes, and performs only allowlisted GET
+operations. The receipt intentionally omits source text, token claims, API
+responses and credential material. It is **not** a penetration test or an
+enterprise product release certificate. See `docs/m3-preflight.md`.
