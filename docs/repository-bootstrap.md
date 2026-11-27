@@ -1,30 +1,16 @@
-# Dedicated GitHub repository and delivery workflow
+# GitHub repository integration and contribution workflow
 
-**Repository:** [`NeuralBlitz/UPAOI`](https://github.com/NeuralBlitz/UPAOI) — private, independent from AgentOS, NBOS, Nexus and Agent-Gateway.
+**Canonical repository:** [NeuralBlitz/UPAOI](https://github.com/NeuralBlitz/UPAOI), created on 2026-11-22 and confirmed **public** on 2026-11-27.
 
-## Initial import
+The initial v0.2.0 implementation was added through [PR #1](https://github.com/NeuralBlitz/UPAOI/pull/1) and merged into `main`; GitHub Actions passed its Python 3.10/3.12/3.13 test matrix. This page supersedes the historical v0.2 bootstrap instructions that assumed the repository did not exist.
 
-The repository was created by the account holder on 2026-11-22, with an initial `main` README. The v0.2.0 Python source, tests, documentation and CI configuration are staged separately on `feat/bootstrap-upaoi-v0.2.0` for code review. Do not merge until the PR checks run and maintainers review the changes.
+## Contribution process
 
-## Review checklist
+1. Create a branch from a verified `main` commit.
+2. Change only task-relevant files and document observable behavior, test coverage and limitations.
+3. Run `python -m pip install -e .` then `python -m unittest discover -s tests -v` and local CLI smoke tests.
+4. Open a reviewable pull request targeting `main`; do not force-push or rewrite history.
+5. Confirm the GitHub Actions jobs, review the full file diff, then merge only after authorization and approval.
+6. Record the new commit, PR, CI and implementation checkpoint in the canonical Notion blueprint.
 
-1. Open the pull request from `feat/bootstrap-upaoi-v0.2.0` to `main`.
-2. Confirm the added files contain no tokens, production secrets, or data that must not be committed.
-3. Review security boundaries, current limitations and deterministic adapter contracts in `docs/security.md`.
-4. Let the `Test UPAOI` GitHub Actions matrix run; check Python 3.10, 3.12, and 3.13 jobs.
-5. Confirm local tests, read-only fixture demo, and relative CLI entrypoints reproduce.
-6. Require an independent review before approving any future plugin write adapter or production deployment.
-
-## Local development
-
-```bash
-git clone https://github.com/NeuralBlitz/UPAOI.git
-cd UPAOI
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-python -m unittest discover -s tests -v
-upaoi demo --db ./sandbox.sqlite
-```
-
-Do not store credentials or GitHub/Notion tokens in repository files. `UPAOI_GITHUB_TOKEN` and `UPAOI_NOTION_TOKEN` are separate runtime credentials and are **not** inherited from ChatGPT plugins.
+`main` and public repository visibility are not evidence that the project is production-deployed. Do not commit any API keys, user datasets or local SQLite execution state to this public source repository.

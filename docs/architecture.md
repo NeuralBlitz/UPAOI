@@ -1,43 +1,49 @@
-# UPAOI v0.2 architecture — executable read-only integration slice
+# UPAOI v0.3 architecture — governed local execution and specialist handoffs
 
 ```mermaid
 flowchart TB
-    U[Authenticated operator] --> G[Trusted host / gateway]
-    G --> P[Workflow and policy engine]
-    P --> C[Version-pinned capability registry]
-    P --> D[Dependency-aware DAG executor]
-    D --> GH[GitHub repository read adapter]
-    D --> NO[Notion page read adapter]
-    GH --> R[Projected repository metadata]
-    NO --> X[Projected page metadata and bounded excerpt]
-    R --> M[Provenance manifest]
-    X --> M
-    D --> L[SQLite step checkpoints and event ledger]
-    M --> L
+    U[Authenticated principal — future gateway] --> G[Trusted host — NOT deployed]
+    G --> P[Policy and capability registry]
+    P --> E[DAG execution engine]
+    E --> C[Principal-bound SQLite ledger and exclusive claims]
+    E --> A[Specialist dispatch]
+    A --> W1[Registered analyst handler]
+    A --> W2[Registered auditor handler]
+    W1 --> R1[Separate registered reviewer]
+    W2 --> R2[Separate registered reviewer]
+    E --> GH[Allowlisted GitHub GET adapter]
+    E --> NO[Allowlisted Notion GET adapter]
+    GH --> M[Projected metadata / provenance]
+    NO --> M
+    R1 --> C
+    R2 --> C
+    M --> C
 ```
 
-The trusted host is **not implemented** yet; it must authenticate operators, inject least-privilege secrets, and bind authorization to caller identity before any production use. Read-only credentials are separate from ChatGPT's connected plugin identities.
+**Implemented:** Python DAG runtime, fixed capability contracts, principal-bound request IDs, atomic SQLite exclusive claims, JSON-only specialist packet validation and registered reviewer handoffs, read-only GitHub/Notion adapters, local tests and CI.
 
-## Implemented
+**Not implemented:** authenticated hosted gateway, real LLM-agent handlers, shared secure credential broker, hosted queue/workers, distributed lock fencing, signed user approvals, external write adapters or production deployment.
 
-- Deterministic, pinned read-only capabilities: `github.repository_read`, `notion.page_read`, `local.evidence_manifest`.
-- Explicit repository and page allowlists; token required for Notion, optional for public GitHub repository metadata.
-- Server-controlled HTTPS endpoints, blocked cross-host redirects, bounded response sizes and timeouts.
-- Minimal provider result projection, schema enforcement, event ledger, crash recovery for read operations.
-- Independent fixture-based tests for allowlists, API response contracts, data injection boundaries and step checkpointing.
-- Latest health inventory recorded as **observations**, not proof of ongoing authorization or API availability.
+## Principal binding and replay
 
-## Not implemented
+The API requires an explicit `principal_id` on each `Engine.run(...)` call. A request ID stored under another principal is blocked without disclosing its outputs. Authorization is checked again on cached completed requests. Legacy rows with `principal_id=NULL` are not auto-assigned to a user; migrating them requires trusted administration.
 
-- ChatGPT plugin token handoff, authenticated users/tenants, cloud secrets broker, distributed workers, concurrency locks, queues, user approval tokens, hosted UI, live integration monitoring, external writes or PR creation.
-- Independent source truth verification: an evidence manifest records provenance links, not validated claims.
-- Full recursive Notion page retrieval: page child listing is bounded at 25 blocks and `truncated` signals partial coverage.
-- Cryptographically tamper-evident logs and secure encrypted storage; SQLite is a local prototype store.
+## Concurrency and crash policy
 
-## Provenance and trust
+A local run atomically acquires a request claim in SQLite before invoking adapters. A second attempt against the same unfinished request returns `BLOCKED`. A normal completion, failure or caught exception releases the claim. If the process is terminated before release, the claim persists indefinitely until trusted reconciliation. This intentionally prioritizes safety over unattended recovery. A hosted service would need leases with fencing, operator-signed recovery and provider write-reconciliation.
 
-Outputs from GitHub/Notion are untrusted data. Prompt-like text within source content does not authorize new tools, grants, task changes or policy overrides. The workflow grants are static inputs of a trusted caller. The current engine's idempotency uses a request ID and workflow digest but is **not** a substitute for authenticated requester binding.
+## Specialist delegation
 
-## Release gate
+Specialist handlers are registered by the trusted host. Handoffs must present a specific agent ID, version, objective, acceptance criteria, exact source references, authorized data classification and schema-conforming JSON payload. The worker cannot enlarge its own grants. A separately registered reviewer must accept an output before the handoff is returned. An accepted handoff is not proof of factual correctness and not permission to perform external writes.
 
-Do not deploy this engine with an open execution API. First implement: bearer/session auth at a trusted service boundary, per-tenant resource ACLs, credential vault, bounded execution lock, data retention rules, redaction and approval receipts. Then add a live API smoke test with narrow scopes, mocked failure integration tests and a write-ahead outbox for any external writes.
+## Provider trust boundaries
+
+GitHub and Notion readers accept only configured repository/page allowlists, controlled HTTPS hosts and bounded responses. Credentials are separate runtime environment values, not ChatGPT connector credentials. Provider data is never a source of new privileges.
+
+## Remaining production gates
+
+1. Authenticated gateway deriving principal and resource scopes from trusted sessions.
+2. Credential isolation, source-specific ACLs, data retention and encrypted storage.
+3. Bounded worker lifecycle with secure queue, heartbeat, fenced claims and reconciliation.
+4. Model/provider adapters with contracts, independent verification, prompt-injection tests and telemetry.
+5. Provider receipts, transactional outbox and human-reviewed approvals before any consequential external action.

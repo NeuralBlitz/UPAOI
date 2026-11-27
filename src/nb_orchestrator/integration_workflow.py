@@ -48,12 +48,15 @@ def build_integration_engine(store: Store, *, allowed_repo: str, allowed_page: s
     return Engine(reg,store,agents,adapters),workflow
 
 
-def run_read_only_sources(db: str, *, request_id: str, repo: str, page_id: str, github_reader=None, notion_reader=None):
+def run_read_only_sources(db: str, *, request_id: str, repo: str, page_id: str, principal_id: str = "local-cli", github_reader=None, notion_reader=None):
     store=Store(db)
-    engine,workflow=build_integration_engine(store,allowed_repo=repo,allowed_page=page_id,
-                                              github_reader=github_reader,notion_reader=notion_reader)
-    result=engine.run(workflow,request_id=request_id,
-                      requested_grants={"github.repository_read","notion.page_read","local.evidence_manifest"},
-                      execution_scopes={"github:repository:read","notion:page:read"})
-    return {"status":result.status,"reason":result.reason,"outputs":result.outputs,
-            "event_count":len(store.events(request_id))}
+    try:
+        engine,workflow=build_integration_engine(store,allowed_repo=repo,allowed_page=page_id,
+                                                  github_reader=github_reader,notion_reader=notion_reader)
+        result=engine.run(workflow,request_id=request_id,principal_id=principal_id,
+                          requested_grants={"github.repository_read","notion.page_read","local.evidence_manifest"},
+                          execution_scopes={"github:repository:read","notion:page:read"})
+        return {"status":result.status,"reason":result.reason,"outputs":result.outputs,
+                "event_count":len(store.events(request_id))}
+    finally:
+        store.connection.close()

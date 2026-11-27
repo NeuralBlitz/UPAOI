@@ -1,5 +1,11 @@
-"""Durable local execution state and append-only event records (SQLite)."""
+"""SQLite execution ledger with principal binding and conservative exclusive claims.
+
+A claim never expires automatically. After a process crash, a trusted operator
+must explicitly reconcile the abandoned run before another worker may execute it.
+This sacrifices automatic recovery to avoid concurrent external side effects.
+"""
 from __future__ import annotations
+
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -13,13 +19,15 @@ def utcnow() -> str:
 
 class Store:
     def __init__(self, path: str | Path = ":memory:") -> None:
-        self.connection = sqlite3.connect(str(path))
+        self.connection = sqlite3.connect(str(path), timeout=10)
         self.connection.execute("PRAGMA foreign_keys=ON")
+        self.connection.execute("PRAGMA busy_timeout=10000")
         self.connection.executescript("""
         CREATE TABLE IF NOT EXISTS executions (
             request_id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL,
             workflow_version TEXT NOT NULL, spec_digest TEXT NOT NULL,
-            status TEXT NOT NULL, reason TEXT, updated_at TEXT NOT NULL
+            status TEXT NOT NULL, reason TEXT, updated_at TEXT NOT NULL,
+            principal_id TEXT, claim_token TEXT
         );
         CREATE TABLE IF NOT EXISTS step_results (
             request_id TEXT NOT NULL REFERENCES executions(request_id),
@@ -33,17 +41,56 @@ class Store:
             created_at TEXT NOT NULL
         );
         """)
+        # Additive migration. Pre-0.3 executions retain principal_id=NULL and are
+        # deliberately inaccessible until an operator performs a trusted migration.
+        columns = {row[1] for row in self.connection.execute("PRAGMA table_info(executions)")}
+        for column in ("principal_id", "claim_token"):
+            if column not in columns:
+                self.connection.execute(f"ALTER TABLE executions ADD COLUMN {column} TEXT")
         self.connection.commit()
 
-    def start(self, request_id: str, workflow_id: str, version: str, spec_digest: str) -> None:
-        existing = self.connection.execute("SELECT workflow_id,workflow_version,spec_digest FROM executions WHERE request_id=?",(request_id,)).fetchone()
-        if existing:
-            if existing != (workflow_id, version, spec_digest):
-                raise ValueError("request ID already belongs to a different workflow or spec")
-            return
+    def start(self, request_id: str, workflow_id: str, version: str, spec_digest: str,
+              *, principal_id: str) -> None:
+        if not isinstance(principal_id, str) or not principal_id.strip() or len(principal_id) > 200:
+            raise ValueError("nonempty authenticated principal id required")
+        # BEGIN IMMEDIATE serializes the first writer across SQLite connections.
         with self.connection:
-            self.connection.execute("INSERT INTO executions VALUES (?,?,?,?,?,?,?)",(request_id,workflow_id,version,spec_digest,"RECEIVED",None,utcnow()))
-            self._event(request_id,"RECEIVED",None,{"workflow_id":workflow_id,"version":version})
+            self.connection.execute("BEGIN IMMEDIATE")
+            existing = self.connection.execute(
+                "SELECT workflow_id,workflow_version,spec_digest,principal_id "
+                "FROM executions WHERE request_id=?", (request_id,)
+            ).fetchone()
+            if existing:
+                if existing[3] != principal_id:
+                    # Do not reveal whether the request exists or belongs to an old schema.
+                    raise PermissionError("request id not accessible to this principal")
+                if existing[:3] != (workflow_id, version, spec_digest):
+                    raise ValueError("request ID already belongs to a different workflow or spec")
+                return
+            self.connection.execute(
+                "INSERT INTO executions (request_id,workflow_id,workflow_version,spec_digest,"
+                "status,reason,updated_at,principal_id,claim_token) VALUES (?,?,?,?,?,?,?,?,NULL)",
+                (request_id, workflow_id, version, spec_digest, "RECEIVED", None, utcnow(), principal_id)
+            )
+            self._event(request_id, "RECEIVED", None, {"workflow_id": workflow_id, "version": version})
+
+    def claim(self, request_id: str, *, principal_id: str, token: str) -> bool:
+        if not token:
+            raise ValueError("empty claim token")
+        with self.connection:
+            cur = self.connection.execute(
+                "UPDATE executions SET claim_token=? WHERE request_id=? AND principal_id=? "
+                "AND claim_token IS NULL AND status != 'COMPLETED'",
+                (token, request_id, principal_id),
+            )
+            return cur.rowcount == 1
+
+    def release(self, request_id: str, *, principal_id: str, token: str) -> None:
+        with self.connection:
+            self.connection.execute(
+                "UPDATE executions SET claim_token=NULL WHERE request_id=? AND principal_id=? "
+                "AND claim_token=?", (request_id, principal_id, token)
+            )
 
     def _event(self, request_id: str, name: str, step_id: str | None, detail: dict[str, Any]) -> None:
         self.connection.execute("INSERT INTO events (request_id,event_type,step_id,detail_json,created_at) VALUES (?,?,?,?,?)",

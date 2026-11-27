@@ -1,5 +1,11 @@
 # Live connector gateway plan (proposed; not implemented)
 
+**v0.3 checkpoint:** Principal-bound local requests, SQLite exclusive claims and
+JSON-only specialist handoff callbacks have been implemented and tested.
+The host authentication gateway, live LLM dispatch, external approval receipts,
+and production provider integration are still not implemented.
+
+
 ## 1. Trust boundaries
 
 - `Intent API`: receives authenticated user request and data classification.
@@ -47,4 +53,6 @@ Every handoff uses: task ID, source refs, allowed capability IDs, schema version
 Canonical architecture: https://app.notion.com/p/41325ca447c181ac82aee167d8fe80fd
 Universal operating protocol: https://app.notion.com/p/41325ca447c1813f918afd57db294070
 
-Proposed project destination: a child implementation page under the existing UPAOI blueprint, linked to the source repo/PR if and when selected.
+Source repository: https://github.com/NeuralBlitz/UPAOI
+Existing v0.2 implementation record: https://app.notion.com/p/42025ca447c181fd9f81d42944be1600
+Future milestones should be recorded under the existing UPAOI blueprint with exact PR, commit and CI links.
