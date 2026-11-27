@@ -31,7 +31,7 @@
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install -e ".[ci]"
 python -m unittest discover -s tests -v
 upaoi demo --db ./sandbox.sqlite
 upaoi agents --db ./agents.sqlite --principal-id local-operator

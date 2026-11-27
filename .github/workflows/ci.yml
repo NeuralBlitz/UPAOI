@@ -17,8 +17,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install project
-        run: python -m pip install -e .
+        run: python -m pip install -e ".[ci]"
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
       - name: Local specialist demo smoke test
-        run: python -m nb_orchestrator.cli agents --db :memory:
+        run: |
+          python -m nb_orchestrator.cli agents --db :memory:
