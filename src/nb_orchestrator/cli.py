@@ -36,7 +36,7 @@ def demo(db: str) -> dict:
 
 def main() -> None:
     p=argparse.ArgumentParser(description="NeuralBlitz UPAOI local prototype")
-    p.add_argument("command",choices=["demo","agents","sources","health","audit-verify","audit-anchor"])
+    p.add_argument("command",choices=["demo","agents","sources","health","audit-verify","audit-anchor","preflight"])
     p.add_argument("--db",default=":memory:")
     p.add_argument("--audit-db",help="Existing gateway audit SQLite file")
     p.add_argument("--anchor-file",help="External signed anchor JSON (audit-verify only)")
@@ -84,6 +84,22 @@ def main() -> None:
         print(json.dumps(verified,indent=2))
         # Preserve audit-anchor output on an independent protected system;
         # a local file on the same host does not provide rollback detection.
+    elif args.command=="preflight":
+        from .pilot_preflight import PreflightFailed, run_fixture_preflight, run_configured_preflight
+        try:
+            if args.fixture:
+                if not args.repo or not args.page_id:
+                    p.error("preflight --fixture requires --repo and --page-id")
+                result = run_fixture_preflight(args.repo, args.page_id)
+            else:
+                # Operator-managed credentials ONLY. Do not accept source ACLs
+                # from untrusted CLI flags in the live execution mode.
+                if args.repo or args.page_id:
+                    p.error("live preflight source allowlists come only from protected configuration")
+                result = run_configured_preflight(os.environ)
+        except PreflightFailed as exc:
+            p.error(str(exc))
+        print(json.dumps(result, indent=2, ensure_ascii=False))
     elif args.command=="sources":
         if not args.repo or not args.page_id:
             p.error("sources requires --repo OWNER/REPO and --page-id NOTION_UUID")

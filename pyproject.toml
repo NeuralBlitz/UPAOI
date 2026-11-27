@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuralblitz-upaoi-mvp"
-version = "0.4.1"
+version = "0.4.2"
 description = "Permission-aware, resumable orchestration core for the NeuralBlitz UPAOI blueprint"
 requires-python = ">=3.10"
 dependencies = ["jsonschema>=4.18,<5"]

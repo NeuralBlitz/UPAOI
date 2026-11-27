@@ -59,3 +59,12 @@ python -m compileall -q src
   anchors, including truncation/rollback tests.
 - These checks use locally generated RSA keys and deterministic mock adapters.
   **No live cloud integration, operational HA, or production approval is implied.**
+
+## M3 read-only identity/provider preflight v0.4.2
+
+- Local suite: **114/114 tests passed** under Python 3.13 after editable install.
+- `upaoi preflight --fixture --repo NeuralBlitz/UPAOI --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd`: **SIMULATED_ONLY**, no network calls or real identity verification.
+- Configured-live preflight verifies a short-lived access token with pinned issuer/audience/JWKS and checks trusted tenant and both read scopes *before* external GETs.
+- Provider identities and URLs are verified against operator allowlists. The receipt never returns source text, JWT claims, usernames or credential material.
+- Negative-path unit tests cover missing credentials, forged/expired tokens, missing read scope, wrong tenant, source mismatch and sanitized provider exceptions.
+- CI includes the offline fixture preflight. **No independently provisioned live IdP/GitHub/Notion credential exercise is claimed**.
