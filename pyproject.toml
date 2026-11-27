@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuralblitz-upaoi-mvp"
+version = "0.2.0"
+description = "Permission-aware, resumable orchestration core for the NeuralBlitz UPAOI blueprint"
+requires-python = ">=3.10"
+dependencies = ["jsonschema>=4.18,<5"]
+
+[project.scripts]
+upaoi = "nb_orchestrator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

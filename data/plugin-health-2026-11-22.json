@@ -1,0 +1,540 @@
+{
+  "date": "2026-11-22",
+  "summary": {
+    "exposed": 88,
+    "response_ok": 73,
+    "blocked": 5,
+    "not_tested": 10,
+    "tested": 78
+  },
+  "items": [
+    {
+      "plugin": "Gmail",
+      "status": "response_ok",
+      "test": "get_profile (known connected account)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Google_Calendar",
+      "status": "response_ok",
+      "test": "get_profile",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Airtable",
+      "status": "response_ok",
+      "test": "ping -> pong",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Hugging_Face",
+      "status": "response_ok",
+      "test": "hf_whoami -> authenticated",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Figma",
+      "status": "response_ok",
+      "test": "whoami",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Adobe",
+      "status": "response_ok",
+      "test": "image_list_presets",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Adobe_Acrobat",
+      "status": "not_tested",
+      "test": null,
+      "details": "Requires an existing attached file, valid Adobe asset, or tracking ID; no applicable read-only test was available."
+    },
+    {
+      "plugin": "Apple_Music",
+      "status": "response_ok",
+      "test": "search public artist catalog",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Vercel",
+      "status": "response_ok",
+      "test": "get_auth_user",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Agentic_Slides_by_SlidesGPT",
+      "status": "response_ok",
+      "test": "show_theme_picker, empty presentation ID",
+      "details": "Theme picker returned 18 themes; no deck produced (deck_id was null)."
+    },
+    {
+      "plugin": "GitHub",
+      "status": "response_ok",
+      "test": "get_user_login -> NeuralBlitz",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Lovable",
+      "status": "response_ok",
+      "test": "get_me",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Canva",
+      "status": "response_ok",
+      "test": "list_brand_kits (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Notion",
+      "status": "response_ok",
+      "test": "notion_get_self",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Trello",
+      "status": "response_ok",
+      "test": "trelloReadMember(action=get_me)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Browser",
+      "status": "blocked",
+      "test": null,
+      "details": "Browser extension/session context required; list_tabs failed outside an originating connected browser."
+    },
+    {
+      "plugin": "Plugin_Creator",
+      "status": "response_ok",
+      "test": "list_owned_personal_plugins (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Jotform",
+      "status": "response_ok",
+      "test": "get_teams (no teams)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "ElevenLabs",
+      "status": "blocked",
+      "test": null,
+      "details": "agents_list and agents_list_knowledge_base both failed internally."
+    },
+    {
+      "plugin": "Manus",
+      "status": "not_tested",
+      "test": null,
+      "details": "Exposed commands initiate new research/creation jobs; avoided starting one."
+    },
+    {
+      "plugin": "Synapse",
+      "status": "response_ok",
+      "test": "search (public paper)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Dopamine_Club",
+      "status": "response_ok",
+      "test": "catalog_status",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Arca_Life_Sciences",
+      "status": "response_ok",
+      "test": "list_datasets",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "PartnerProf",
+      "status": "response_ok",
+      "test": "partnerprof_status",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "PeptidePrices_COA_Verifier",
+      "status": "response_ok",
+      "test": "get_coa_library_summary",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Peptide_Critic",
+      "status": "response_ok",
+      "test": "search_peptides (public index)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Typeform",
+      "status": "response_ok",
+      "test": "accounts_list_accounts",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "SciSpace",
+      "status": "response_ok",
+      "test": "search_papers (research question)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Wolfram",
+      "status": "response_ok",
+      "test": "WolframAlpha (2+2 -> 4)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Explain_Video_Generator",
+      "status": "not_tested",
+      "test": null,
+      "details": "Available commands start/append/finish a new explainer; avoided creation."
+    },
+    {
+      "plugin": "Tarteel",
+      "status": "response_ok",
+      "test": "lookup_reciters",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "AhaMotion",
+      "status": "not_tested",
+      "test": null,
+      "details": "Video generation requires starting a job; status requires an existing task ID."
+    },
+    {
+      "plugin": "Academic_Writing_Toolkit",
+      "status": "response_ok",
+      "test": "check_british_english (sample)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Strive_PDF_Generator",
+      "status": "not_tested",
+      "test": null,
+      "details": "PDF-generation/revision only; avoided creating an unsolicited document."
+    },
+    {
+      "plugin": "Scholar_Sidekick",
+      "status": "response_ok",
+      "test": "verify_citation (Attention Is All You Need)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Udemy",
+      "status": "response_ok",
+      "test": "search_courses (Python programming)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "quran_ai",
+      "status": "response_ok",
+      "test": "fetch_quran_metadata (surah 1)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "StudyMe_ai",
+      "status": "not_tested",
+      "test": null,
+      "details": "Only creation of new lessons is exposed; avoided creating one."
+    },
+    {
+      "plugin": "AnyLessonPlan_for_Teachers",
+      "status": "response_ok",
+      "test": "display_lesson_plan (sample)",
+      "details": "Lesson editor rendered a test plan; no PDF export or external write tested."
+    },
+    {
+      "plugin": "Precise_Special_Functions",
+      "status": "response_ok",
+      "test": "riemann_zeta (2)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "1_Billion_Brain_Cells",
+      "status": "response_ok",
+      "test": "color_switch widget launch",
+      "details": "Widget initialization succeeded; game was not played to completion."
+    },
+    {
+      "plugin": "Chymia",
+      "status": "response_ok",
+      "test": "element_viewer_open_or_update (hydrogen)",
+      "details": "Element viewer opened with hydrogen; no write operation tested."
+    },
+    {
+      "plugin": "Learning_Commons",
+      "status": "response_ok",
+      "test": "find_standard_statement (3.NF.A.1)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Replit",
+      "status": "response_ok",
+      "test": "list_apps (limit 1)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Netlify",
+      "status": "response_ok",
+      "test": "netlify_project_get_projects (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "AI_Voice_Generator",
+      "status": "not_tested",
+      "test": null,
+      "details": "Only generates audio; avoided creating or incurring usage."
+    },
+    {
+      "plugin": "Picsart",
+      "status": "response_ok",
+      "test": "picsart_drive_list (empty root)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Dropbox",
+      "status": "response_ok",
+      "test": "list_folder (root, limit 1)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Parallel",
+      "status": "response_ok",
+      "test": "web_search (MDN Promise.all)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "monday_com",
+      "status": "response_ok",
+      "test": "get_graphql_schema (read); first tool missing, alternate worked",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Forms_AI",
+      "status": "response_ok",
+      "test": "search_forms (empty query)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Resume_Maker",
+      "status": "response_ok",
+      "test": "check_app_builder_services",
+      "details": "Service availability check succeeded; no résumé/PDF was generated."
+    },
+    {
+      "plugin": "Website_Maker",
+      "status": "not_tested",
+      "test": null,
+      "details": "Only new website-build-link creation is exposed; avoided generating an unsolicited project."
+    },
+    {
+      "plugin": "Base44",
+      "status": "response_ok",
+      "test": "grow_whoami",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Runway",
+      "status": "response_ok",
+      "test": "whoami -> authenticated",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Windsor_ai",
+      "status": "response_ok",
+      "test": "get_connectors (read-only)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Higgsfield",
+      "status": "response_ok",
+      "test": "get_profile",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Spin_The_Wheel",
+      "status": "response_ok",
+      "test": "search_presets (bundled examples)",
+      "details": "Bundled preset catalog returned; does not verify live user data."
+    },
+    {
+      "plugin": "PDF_TO_MP3",
+      "status": "not_tested",
+      "test": null,
+      "details": "Read access requires an existing 32-character player ID; none was supplied."
+    },
+    {
+      "plugin": "Todoist",
+      "status": "response_ok",
+      "test": "find_folders (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Linear",
+      "status": "response_ok",
+      "test": "get_workspace",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Whimsical",
+      "status": "response_ok",
+      "test": "search workspace (no match)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Xmind",
+      "status": "response_ok",
+      "test": "xmind_whoami",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Coda",
+      "status": "blocked",
+      "test": null,
+      "details": "whoami, notifications_list and search all failed internally."
+    },
+    {
+      "plugin": "Zite",
+      "status": "response_ok",
+      "test": "list_workspaces (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "joblet_ai",
+      "status": "not_tested",
+      "test": null,
+      "details": "Only job search is exposed, with a real user job query required; not relevant to this test request."
+    },
+    {
+      "plugin": "Craft",
+      "status": "response_ok",
+      "test": "craft_read (connection info)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "TasksBoard",
+      "status": "response_ok",
+      "test": "list_task_lists (limit 1)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Jotform_Apps",
+      "status": "response_ok",
+      "test": "get_teams (no teams)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "MindMap",
+      "status": "response_ok",
+      "test": "interactive_mind_map_for_visual_plans (3-node test)",
+      "details": "Markdown-to-mind-map parser accepted a 3-node sample; no externally saved document."
+    },
+    {
+      "plugin": "Autocalls_AI",
+      "status": "blocked",
+      "test": null,
+      "details": "get_me returned FORBIDDEN: AI connector not enabled for this account."
+    },
+    {
+      "plugin": "CodeAgent_Mobile",
+      "status": "response_ok",
+      "test": "list_agents",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "AutoRouter",
+      "status": "response_ok",
+      "test": "list_models (limit 1)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Magnific",
+      "status": "response_ok",
+      "test": "account_profile",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Render",
+      "status": "response_ok",
+      "test": "list_workspaces; get_selected_workspace failed because none selected",
+      "details": "Account/workspaces list succeeds, but active workspace selection is required for further operations."
+    },
+    {
+      "plugin": "AppDeploy",
+      "status": "response_ok",
+      "test": "get_apps",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Floot",
+      "status": "response_ok",
+      "test": "get_guides",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "SentinelX",
+      "status": "response_ok",
+      "test": "sentinel_list_hosts (0 hosts); sentinel_ping unavailable with no hosts",
+      "details": "Account/host listing succeeds (0 enrolled hosts), but host execution is unavailable until a host is enrolled."
+    },
+    {
+      "plugin": "Hercules",
+      "status": "response_ok",
+      "test": "org_read",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Pixel_Engine",
+      "status": "response_ok",
+      "test": "list_recent_jobs (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Firecrawl",
+      "status": "response_ok",
+      "test": "firecrawl_developer_search (public developer docs)",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Asana",
+      "status": "response_ok",
+      "test": "get_me",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Browser_Use",
+      "status": "response_ok",
+      "test": "read_public_web (example.com), wait_browser_result -> Example Domain",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "Lucid",
+      "status": "response_ok",
+      "test": "lucid_list_integrations",
+      "details": "Read-only endpoint returned a usable response."
+    },
+    {
+      "plugin": "SlideForge",
+      "status": "response_ok",
+      "test": "browse_catalog",
+      "details": "Catalog browsing succeeded; no slide/deck was generated."
+    },
+    {
+      "plugin": "Automations",
+      "status": "blocked",
+      "test": null,
+      "details": "list_event_sources and get(existing task ID) returned HTTP 404 / action not found."
+    },
+    {
+      "plugin": "Plugin_Management",
+      "status": "response_ok",
+      "test": "search_plugins (GitHub)",
+      "details": "Catalog search succeeded; management/mutation actions were not tested."
+    },
+    {
+      "plugin": "ChatGPT_Space",
+      "status": "response_ok",
+      "test": "list_spaces (empty list)",
+      "details": "Read-only endpoint returned a usable response."
+    }
+  ]
+}
