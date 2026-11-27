@@ -4,13 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuralblitz-upaoi-mvp"
-version = "0.3.0"
+version = "0.4.0"
 description = "Permission-aware, resumable orchestration core for the NeuralBlitz UPAOI blueprint"
 requires-python = ">=3.10"
 dependencies = ["jsonschema>=4.18,<5"]
 
 [project.optional-dependencies]
 ci = ["PyYAML>=6.0,<7"]
+enterprise = ["PyJWT[crypto]>=2.10,<3", "fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+enterprise-test = ["PyJWT[crypto]>=2.10,<3", "fastapi>=0.115,<1", "httpx>=0.27,<1"]
 
 [project.scripts]
 upaoi = "nb_orchestrator.cli:main"

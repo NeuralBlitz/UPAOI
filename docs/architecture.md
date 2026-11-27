@@ -47,3 +47,25 @@ GitHub and Notion readers accept only configured repository/page allowlists, con
 3. Bounded worker lifecycle with secure queue, heartbeat, fenced claims and reconciliation.
 4. Model/provider adapters with contracts, independent verification, prompt-injection tests and telemetry.
 5. Provider receipts, transactional outbox and human-reviewed approvals before any consequential external action.
+
+## v0.4 enterprise admission architecture (not deployed)
+
+```text
+Trusted OIDC issuer / rotated public JWKS    Operator managed source allowlists
+                 |                                        |
+   TLS ingress + API rate limits (TO BUILD)               |
+                 |                                        |
+             POST /v1/runs (no client grants, identity or write steps)
+                 |
+         RS256 token verification ---- tenant ACL + token scope intersection
+                 |
+           server workflow catalog, P0 ONLY
+                 |
+         local SQLite claim + DAG runner
+                 |                      |
+        GitHub/Notion GET adapters    HMAC-linked gateway audit receipts
+                 |                      |
+   read-only result + source refs     independent anchor (TO BUILD)
+```
+
+Live providers, external token rotation, HA database and distributed recovery are **future acceptance gates**. This is an offline-verifiable enterprise security boundary, not a deployed production platform.

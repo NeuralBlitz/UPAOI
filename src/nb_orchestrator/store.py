@@ -8,9 +8,19 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
+from functools import wraps
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+def synchronized(method):
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return wrapper
 
 
 def utcnow() -> str:
@@ -19,7 +29,9 @@ def utcnow() -> str:
 
 class Store:
     def __init__(self, path: str | Path = ":memory:") -> None:
-        self.connection = sqlite3.connect(str(path), timeout=10)
+        self._lock = threading.RLock()
+        # Safe within a multi-threaded ASGI worker only with method-level lock.
+        self.connection = sqlite3.connect(str(path), timeout=10, check_same_thread=False)
         self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA busy_timeout=10000")
         self.connection.executescript("""
@@ -49,6 +61,7 @@ class Store:
                 self.connection.execute(f"ALTER TABLE executions ADD COLUMN {column} TEXT")
         self.connection.commit()
 
+    @synchronized
     def start(self, request_id: str, workflow_id: str, version: str, spec_digest: str,
               *, principal_id: str) -> None:
         if not isinstance(principal_id, str) or not principal_id.strip() or len(principal_id) > 200:
@@ -74,6 +87,7 @@ class Store:
             )
             self._event(request_id, "RECEIVED", None, {"workflow_id": workflow_id, "version": version})
 
+    @synchronized
     def claim(self, request_id: str, *, principal_id: str, token: str) -> bool:
         if not token:
             raise ValueError("empty claim token")
@@ -85,6 +99,7 @@ class Store:
             )
             return cur.rowcount == 1
 
+    @synchronized
     def release(self, request_id: str, *, principal_id: str, token: str) -> None:
         with self.connection:
             self.connection.execute(
@@ -96,28 +111,34 @@ class Store:
         self.connection.execute("INSERT INTO events (request_id,event_type,step_id,detail_json,created_at) VALUES (?,?,?,?,?)",
                                 (request_id,name,step_id,json.dumps(detail,sort_keys=True),utcnow()))
 
+    @synchronized
     def emit(self, request_id: str, name: str, step_id: str | None = None, detail: dict | None = None) -> None:
         with self.connection:
             self._event(request_id,name,step_id,detail or {})
 
+    @synchronized
     def status(self, request_id: str, status: str, reason: str | None = None) -> None:
         with self.connection:
             self.connection.execute("UPDATE executions SET status=?, reason=?, updated_at=? WHERE request_id=?",
                                     (status,reason,utcnow(),request_id))
             self._event(request_id,status,None,{"reason":reason})
 
+    @synchronized
     def store_step(self, request_id: str, step_id: str, output: dict[str, Any], *, verification: str) -> None:
         with self.connection:
             self.connection.execute("INSERT INTO step_results VALUES (?,?,?,?)",(request_id,step_id,json.dumps(output,sort_keys=True),utcnow()))
             self._event(request_id,"STEP_COMPLETED",step_id,{"verification":verification})
 
+    @synchronized
     def outputs(self, request_id: str) -> dict[str, dict[str, Any]]:
         rows = self.connection.execute("SELECT step_id,result_json FROM step_results WHERE request_id=?",(request_id,)).fetchall()
         return {step_id: json.loads(raw) for step_id,raw in rows}
 
+    @synchronized
     def state(self, request_id: str) -> tuple[str, str | None] | None:
         return self.connection.execute("SELECT status,reason FROM executions WHERE request_id=?",(request_id,)).fetchone()
 
+    @synchronized
     def events(self, request_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute("SELECT seq,event_type,step_id,detail_json,created_at FROM events WHERE request_id=? ORDER BY seq",(request_id,)).fetchall()
         return [dict(seq=seq,type=typ,step=step,details=json.loads(d),at=at) for seq,typ,step,d,at in rows]

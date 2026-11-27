@@ -23,6 +23,8 @@ class GithubActionsConfigTests(unittest.TestCase):
         self.assertIn('Local specialist demo smoke test',{x.get('name') for x in steps})
         run=next(x['run'] for x in steps if x.get('name')=='Local specialist demo smoke test')
         self.assertIn('nb_orchestrator.cli agents',run)
+        install=next(x['run'] for x in steps if x.get('name')=='Install project')
+        self.assertIn('enterprise-test',install)
 
 
 if __name__=='__main__':unittest.main()
