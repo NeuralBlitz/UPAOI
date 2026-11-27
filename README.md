@@ -1,4 +1,4 @@
-# NeuralBlitz UPAOI — governed agent orchestration Enterprise Pilot Candidate v0.4.0
+# NeuralBlitz UPAOI — governed agent orchestration Enterprise Pilot Candidate v0.4.1
 
 [![Test UPAOI](https://github.com/NeuralBlitz/UPAOI/actions/workflows/ci.yml/badge.svg)](https://github.com/NeuralBlitz/UPAOI/actions/workflows/ci.yml)
 
@@ -90,3 +90,39 @@ Use `upaoi agents` to exercise the two-step pipeline and inspect accepted output
 - `src/nb_orchestrator/providers.py`: read-only GitHub/Notion provider adapters.
 - `tests/`: regression and security tests.
 - `docs/`: architecture, integration, agent and security documentation.
+
+
+## Enterprise admission and externally anchored auditing (v0.4.1)
+
+The opt-in enterprise gateway includes **fixed-window quotas enforced inside SQLite
+transactions** for both the verified tenant and verified principal. A denied
+request returns HTTP 429 with a bounded `Retry-After`, without invoking the
+workflow. Every attempt, including a cached replay, consumes admission budget.
+This protects internal-alpha execution capacity; it is **not** DDoS protection.
+Use independent TLS ingress rate limits and a shared multi-node quota service
+before a production launch.
+
+For the environment-configured gateway, `UPAOI_ADMISSION_DB` is **required**
+and must point to a distinct durable SQLite file. This intentional internal-alpha
+configuration gate fails startup if the admission ledger is omitted.
+Limits default to `UPAOI_TENANT_REQUESTS_PER_MIN=100` and
+`UPAOI_PRINCIPAL_REQUESTS_PER_MIN=25`. These defaults must be benchmarked;
+invalid settings fail startup. The app stores only hashed principal/tenant IDs
+in the quota database.
+
+`GET /health/ready` verifies the audit chain and local execution/admission
+connections and returns 503 on failure; `/health/live` remains a minimal process
+liveness endpoint. The asynchronous HTTP route delegates blocking execution to
+a thread pool to keep the ASGI event loop responsive.
+
+To export a signed checkpoint for an **independent, access-controlled store**:
+
+```bash
+UPAOI_AUDIT_KEY_HEX=... upaoi audit-anchor --audit-db /var/lib/upaoi/gateway-audit.db > anchor.json
+UPAOI_AUDIT_KEY_HEX=... upaoi audit-verify --audit-db /var/lib/upaoi/gateway-audit.db --anchor-file anchor.json
+```
+
+The anchor is only useful against rollback when retained outside the host,
+backed by an independently controlled retention policy, and protected from the
+signing-key holder. See `docs/internal-alpha-gates.md`. No cloud anchor, IdP
+registration or live external connector smoke test is included in this build.

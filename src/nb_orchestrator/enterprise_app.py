@@ -14,6 +14,7 @@ import re
 from .enterprise_audit import AuditJournal
 from .enterprise_auth import OidcVerifier
 from .enterprise_gateway import EnterpriseGateway, TenantPolicy
+from .enterprise_quota import QuotaLedger
 from .enterprise_http import create_app
 from .integration_workflow import build_integration_engine
 from .store import Store
@@ -23,12 +24,13 @@ def build_app_from_environment(environ: dict[str, str] | None = None):
     env = os.environ if environ is None else environ
     required = ("UPAOI_OIDC_ISSUER", "UPAOI_OIDC_AUDIENCE", "UPAOI_OIDC_JWKS_JSON",
                 "UPAOI_AUDIT_KEY_HEX", "UPAOI_TENANT_ID", "UPAOI_ALLOWED_REPO",
-                "UPAOI_ALLOWED_NOTION_PAGE", "UPAOI_EXECUTION_DB", "UPAOI_AUDIT_DB")
+                "UPAOI_ALLOWED_NOTION_PAGE", "UPAOI_EXECUTION_DB", "UPAOI_AUDIT_DB",
+                "UPAOI_ADMISSION_DB")
     if any(not env.get(name) for name in required):
         raise RuntimeError("UPAOI enterprise pilot requires complete trusted configuration")
-    if (env["UPAOI_EXECUTION_DB"] == ":memory:" or env["UPAOI_AUDIT_DB"] == ":memory:"
-            or env["UPAOI_EXECUTION_DB"] == env["UPAOI_AUDIT_DB"]):
-        raise ValueError("pilot must use separate durable execution and audit databases")
+    databases = [env["UPAOI_EXECUTION_DB"], env["UPAOI_AUDIT_DB"], env["UPAOI_ADMISSION_DB"]]
+    if any(db == ":memory:" for db in databases) or len(set(databases)) != len(databases):
+        raise ValueError("pilot requires separate durable execution, audit and admission databases")
     try:
         key = bytes.fromhex(env["UPAOI_AUDIT_KEY_HEX"])
         jwks = json.loads(env["UPAOI_OIDC_JWKS_JSON"])
@@ -37,9 +39,20 @@ def build_app_from_environment(environ: dict[str, str] | None = None):
     tenant = env["UPAOI_TENANT_ID"]
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}", tenant):
         raise ValueError("invalid configured tenant")
+    try:
+        tenant_limit = int(env.get("UPAOI_TENANT_REQUESTS_PER_MIN", "100"))
+        principal_limit = int(env.get("UPAOI_PRINCIPAL_REQUESTS_PER_MIN", "25"))
+    except ValueError as exc:
+        raise ValueError("invalid configured admission budget") from exc
     verifier = OidcVerifier(issuer=env["UPAOI_OIDC_ISSUER"],
                             audience=env["UPAOI_OIDC_AUDIENCE"], jwks=jwks)
     audit = AuditJournal(env["UPAOI_AUDIT_DB"], signing_key=key)
+    try:
+        quota = QuotaLedger(env["UPAOI_ADMISSION_DB"], tenant_limit=tenant_limit,
+                            principal_limit=principal_limit)
+    except Exception:
+        audit.close()
+        raise
     try:
         store = Store(env["UPAOI_EXECUTION_DB"])
         try:
@@ -54,11 +67,13 @@ def build_app_from_environment(environ: dict[str, str] | None = None):
                 catalog={"source-inventory": workflow},
                 tenants={tenant: TenantPolicy(frozenset({"source-inventory"}),
                                                required_caps, tenant_scopes)},
+                quota=quota,
             )
         except Exception:
             store.connection.close()
             raise
     except Exception:
+        quota.close()
         audit.close()
         raise
     return create_app(gateway)

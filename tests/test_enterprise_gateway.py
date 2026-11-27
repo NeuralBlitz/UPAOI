@@ -20,6 +20,7 @@ from nb_orchestrator.enterprise_auth import AuthenticationDenied, OidcVerifier
 from nb_orchestrator.enterprise_audit import AuditIntegrityError, AuditJournal
 from nb_orchestrator.enterprise_gateway import AuthorizationDenied, EnterpriseGateway, TenantPolicy
 from nb_orchestrator.enterprise_http import create_app
+from nb_orchestrator.enterprise_quota import AdmissionQuotaExceeded, QuotaLedger
 
 ISSUER = "https://oidc.test.example/"
 AUDIENCE = "upaoi-enterprise-pilot"
@@ -192,6 +193,7 @@ class EnterpriseTests(unittest.TestCase):
             "UPAOI_ALLOWED_NOTION_PAGE": "41325ca4-47c1-81ac-82ae-e167d8fe80fd",
             "UPAOI_EXECUTION_DB": str(Path(self.temp.name)/"configured-execution.db"),
             "UPAOI_AUDIT_DB": str(Path(self.temp.name)/"configured-audit.db"),
+            "UPAOI_ADMISSION_DB": str(Path(self.temp.name)/"configured-admission.db"),
         }
         app=build_app_from_environment(config)
         client=TestClient(app)
@@ -293,6 +295,107 @@ class EnterpriseTests(unittest.TestCase):
         client=TestClient(create_app(self.gateway))
         self.assertEqual(client.get("/openapi.json").status_code,404)
         self.assertEqual(client.get("/docs").status_code,404)
+
+    def test_rate_limit_is_429_and_preserves_safe_admission(self):
+        self.gateway.quota = QuotaLedger(Path(self.temp.name)/"quota.db",
+                                         tenant_limit=2, principal_limit=1)
+        client = TestClient(create_app(self.gateway))
+        headers = {"Authorization": "Bearer " + self.token()}
+        self.assertEqual(client.post("/v1/runs", headers=headers,
+                                    json={"request_id":"first","workflow_key":"read-sample"}).status_code, 200)
+        second = client.post("/v1/runs", headers=headers,
+                             json={"request_id":"second","workflow_key":"read-sample"})
+        self.assertEqual(second.status_code, 429)
+        self.assertTrue(0 < int(second.headers["retry-after"]) <= 60)
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.audit.verify()["count"], 3)
+        self.assertNotIn("tenant-A", repr(self.gateway.quota.connection.execute(
+            "SELECT * FROM admission_quota").fetchall()))
+        self.gateway.quota.close()
+
+    def test_cached_replay_consumes_quota(self):
+        self.gateway.quota = QuotaLedger(Path(self.temp.name)/"quota.db",
+                                         tenant_limit=2, principal_limit=1)
+        self.run_request(req="replay")
+        with self.assertRaises(AdmissionQuotaExceeded):
+            self.run_request(req="replay")
+        self.assertEqual(len(self.calls),1)
+        self.gateway.quota.close()
+
+    def test_workflow_request_collision_returns_409_without_leaking_output(self):
+        self.run_request(req="shared")
+        another = Workflow("other-spec", "1", self.workflow.steps)
+        catalog = {"read-sample": self.workflow, "other": another}
+        policy = TenantPolicy(frozenset(catalog), frozenset({"local.read"}),
+                              frozenset({"data:read"}))
+        self.gateway.catalog = catalog
+        self.gateway.tenants["tenant-A"] = policy
+        client = TestClient(create_app(self.gateway))
+        r = client.post("/v1/runs", headers={"Authorization":"Bearer "+self.token()},
+                        json={"request_id":"shared","workflow_key":"other"})
+        self.assertEqual(r.status_code,409,r.text)
+        self.assertEqual(r.json()["outputs"], {})
+        self.assertEqual(len(self.calls),1)
+
+    def test_readiness_healthy_and_corrupt_chain(self):
+        client = TestClient(create_app(self.gateway))
+        self.assertEqual(client.get("/health/ready").status_code,200)
+        self.run_request()
+        self.audit.connection.execute("UPDATE gateway_audit SET mac=? WHERE seq=1", ('0'*64,))
+        response = client.get("/health/ready")
+        self.assertEqual(response.status_code, 503)
+        self.assertNotIn('mac', response.text)
+
+    def test_readiness_fails_if_quota_ledger_closed(self):
+        self.gateway.quota = QuotaLedger(Path(self.temp.name)/"quota.db")
+        self.gateway.quota.close()
+        client = TestClient(create_app(self.gateway))
+        self.assertEqual(client.get("/health/ready").status_code,503)
+
+    def test_security_headers_are_not_cacheable(self):
+        client = TestClient(create_app(self.gateway))
+        response=client.get("/health/ready")
+        self.assertEqual(response.headers["x-frame-options"], "DENY")
+        self.assertEqual(response.headers["referrer-policy"], "no-referrer")
+        self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_audit_anchor_detects_rollback(self):
+        self.run_request(req="anchor-1")
+        anchor = self.audit.issue_anchor()
+        self.assertEqual(self.audit.verify_anchor(anchor)["anchored_count"], 2)
+        self.run_request(req="anchor-2")
+        self.assertEqual(self.audit.verify_anchor(anchor)["count"], 4)
+        self.audit.connection.execute("DELETE FROM gateway_audit WHERE seq > 1")
+        with self.assertRaises(AuditIntegrityError):
+            self.audit.verify_anchor(anchor)
+
+    def test_audit_anchor_rejects_tamper_and_wrong_key(self):
+        self.run_request()
+        anchor=self.audit.issue_anchor()
+        forged={**anchor,"tip_mac":"0"*64}
+        with self.assertRaises(AuditIntegrityError):
+            self.audit.verify_anchor(forged)
+        foreign=AuditJournal(Path(self.temp.name)/"other-audit.db", signing_key=b'B'*32)
+        try:
+            with self.assertRaises(AuditIntegrityError):
+                foreign.verify_anchor(anchor)
+        finally:
+            foreign.close()
+
+    def test_invalid_config_rejects_missing_admission_file(self):
+        from nb_orchestrator.enterprise_app import build_app_from_environment
+        config={"UPAOI_OIDC_ISSUER":ISSUER,"UPAOI_OIDC_AUDIENCE":AUDIENCE,
+                "UPAOI_OIDC_JWKS_JSON":json.dumps({"keys":[self.public_jwk]}),
+                "UPAOI_AUDIT_KEY_HEX": (b'Z'*32).hex(),"UPAOI_TENANT_ID":"tenant-A",
+                "UPAOI_ALLOWED_REPO":"NeuralBlitz/UPAOI",
+                "UPAOI_ALLOWED_NOTION_PAGE":"41325ca4-47c1-81ac-82ae-e167d8fe80fd",
+                "UPAOI_EXECUTION_DB":str(Path(self.temp.name)/"exec.db"),
+                "UPAOI_AUDIT_DB":str(Path(self.temp.name)/"audit-config.db")}
+        with self.assertRaises(RuntimeError):
+            build_app_from_environment(config)
+        config["UPAOI_ADMISSION_DB"] = config["UPAOI_AUDIT_DB"]
+        with self.assertRaises(ValueError):
+            build_app_from_environment(config)
 
 
 if __name__ == "__main__":

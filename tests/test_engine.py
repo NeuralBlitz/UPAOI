@@ -46,8 +46,10 @@ class EngineTests(unittest.TestCase):
 
     def test_request_id_collision_blocked(self):
         self.execute()
-        with self.assertRaises(ValueError):
-            self.execute(Workflow("other","1",(self.step,)))
+        result = self.execute(Workflow("other","1",(self.step,)))
+        self.assertEqual(result.status, "BLOCKED")
+        self.assertEqual(result.outputs, {})
+        self.assertEqual(len(self.calls), 1)
 
     def test_denied_capability_never_runs(self):
         r=self.execute(grants=set())
