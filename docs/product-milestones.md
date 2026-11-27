@@ -9,8 +9,8 @@
 | Gate | Concrete deliverable | Acceptance / evidence | Status at v0.4.0 PR |
 | --- | --- | --- | --- |
 | M0 — Core research MVP | Typed DAG, explicit capability allowlists, 2-provider synthetic inventory | Repeatable local unit tests and read-only mocked adapters | **Implemented and locally verified** (v0.2) |
-| M1 — Safe specialist prototype | Principal-bound request state, local exclusive claims, worker/reviewer contracts | Unit/concurrency/security tests; GitHub CI | **Implemented and CI verified** in v0.3 PR; **unmerged** when v0.4 development began |
-| M2 — Enterprise gateway foundation | Pinned RS256/OIDC validation, strict tenant/capability gate, registered P0 workflows, bounded HTTP envelope, audit receipt chain | Local negative auth/ACL tests, HMAC integrity tests; CI matrix 3.10/3.12/3.13 | **Implemented locally**, awaiting GitHub PR and its CI result |
+| M1 — Safe specialist prototype | Principal-bound request state, local exclusive claims, worker/reviewer contracts | Unit/concurrency/security tests; GitHub CI | **Merged into main on 2026-11-27**; prior CI verified |
+| M2 — Enterprise gateway foundation | Pinned RS256/OIDC validation, strict tenant/capability gate, registered P0 workflows, bounded HTTP envelope, audit receipt chain | Local negative auth/ACL tests, HMAC integrity tests; CI matrix 3.10/3.12/3.13 | **Implemented in PR #3, CI verified (Python 3.10/3.12/3.13), not merged** |
 | M3 — Controlled internal alpha | Live read-only provider calls with separately issued scoped service credentials; audit reconcilability; OIDC key rotation | Identity-provider smoke tests, real source allowlist, incident drill, centralized secrets, no unauthorized access | **NOT DONE** |
 | M4 — Enterprise preproduction | PostgreSQL event store, ordered event journal, distributed fenced leases, transactional external-effect ledger, external audit anchoring, OTel, tenant isolation tests | Chaos/restart tests, backup/restore, distributed concurrency, penetration test, SAST/SCA, independent review | **NOT DONE** |
 | M5 — Private product beta | Multi-user operator UI, approval UX, tenant/budget governance, agent runtime isolation, human-in-the-loop writes only behind reconciled approvals | Measured performance, retention policy, response procedures, security review, operator docs, 2+ controlled pilot users | **NOT DONE** |
@@ -41,3 +41,11 @@
 **NO-GO until** identity verification is tested against a real IdP; tenant authorization and per-source ACLs have independent review; credentials are held in a vault; TLS/egress/rate limits are enforced; distributed durability/fencing and recovery have evidence; operational and security monitoring exists; backup/restore and incident playbooks have passed; and a named operator approves the release.
 
 Source links: [UPAOI Architecture Blueprint](https://app.notion.com/p/41325ca447c181ac82aee167d8fe80fd), [UPAOI Recovery/Security ADRs](https://app.notion.com/p/41325ca447c1817b9a09e2682e4b7b46), [UPAOI repository](https://github.com/NeuralBlitz/UPAOI).
+
+## Development tracking
+
+- [PR #3 — v0.4 enterprise gateway](https://github.com/NeuralBlitz/UPAOI/pull/3); [first successful CI run](https://github.com/NeuralBlitz/UPAOI/actions/runs/46080900625)
+- [Issue #4 — M3 live IdP/connector verification](https://github.com/NeuralBlitz/UPAOI/issues/4)
+- [Issue #5 — M4 Postgres journal/fencing/effect reconciliation](https://github.com/NeuralBlitz/UPAOI/issues/5)
+- [Issue #6 — M4 security/observability/release controls](https://github.com/NeuralBlitz/UPAOI/issues/6)
+- [Issue #7 — M5 operator console/product validation](https://github.com/NeuralBlitz/UPAOI/issues/7)

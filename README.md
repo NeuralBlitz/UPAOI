@@ -80,7 +80,7 @@ Use `upaoi agents` to exercise the two-step pipeline and inspect accepted output
 
 ## Development workflow
 
-`main` contains the reviewed v0.2 bootstrap, while v0.3 is under review in PR #2. v0.4 should be developed as a stacked PR based on v0.3, and only retargeted to `main` after v0.3 merges. Improvements are proposed on new branches and verified through CI before merging. Do not merge into `main` or deploy production changes without explicit authorization.
+`main` includes the merged v0.3 security and agent-handoff implementation ([PR #2](https://github.com/NeuralBlitz/UPAOI/pull/2)). The enterprise v0.4 gateway is proposed for review in [PR #3](https://github.com/NeuralBlitz/UPAOI/pull/3); it is not yet merged or deployed. Improvements are proposed on new branches and verified through CI before merging. Do not merge into `main` or deploy production changes without explicit authorization.
 
 ## Repository layout
 
