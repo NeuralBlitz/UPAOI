@@ -49,3 +49,15 @@ Source links: [UPAOI Architecture Blueprint](https://app.notion.com/p/41325ca447
 - [Issue #5 — M4 Postgres journal/fencing/effect reconciliation](https://github.com/NeuralBlitz/UPAOI/issues/5)
 - [Issue #6 — M4 security/observability/release controls](https://github.com/NeuralBlitz/UPAOI/issues/6)
 - [Issue #7 — M5 operator console/product validation](https://github.com/NeuralBlitz/UPAOI/issues/7)
+
+
+## M2.1 — Admission hardening increment (v0.4.1 proposal)
+
+- **Implemented in a reviewable follow-up:** bounded fixed-window admission
+  limits for verified tenants/principals, no raw user names in quota records;
+  failed/denied requests do not dispatch tools.
+- **Implemented locally:** asynchronous HTTP offloads blocking execution;
+  `GET /health/ready` and signed audit anchors support local operation checks.
+- **Hard stop:** these controls alone do not meet M3's live provider/IdP
+  integrations, independent security review or operational release requirements.
+- **Review gate:** test under the existing GitHub Actions matrix before merging.

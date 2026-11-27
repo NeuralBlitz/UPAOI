@@ -46,3 +46,16 @@ python -m compileall -q src
 - Added signed RS256 OIDC verification, scoped tenant execution policy, server-defined P0-only workflow catalog, bounded FastAPI endpoint, HMAC-linked audit receipts, audit-verify CLI, concurrency regression tests, fail-closed startup, runbook, product milestone charter, and Dependabot configuration.
 - No live identity provider or provider token was provisioned, no external tool writes, and no production deployment, multi-tenant isolation certification, or distributed recovery was performed.
 - PR #3 is still subject to review before merge. Source: [Enterprise Pilot](docs/enterprise-pilot.md).
+
+
+## v0.4.1 internal-alpha admission hardening
+
+- Shared SQLite transaction limits for tenant and verified principal; denies
+  are observable as `RUN_RATE_LIMITED` audit events without sensitive IDs.
+- Runtime HTTP 429/`Retry-After`, readiness 503 on audit corruption or broken
+  admission ledger, and ASGI threadpool execution to avoid event-loop blocking.
+- Principal-bound request collision is reported as blocked/HTTP 409, not a 500.
+- Audit checkpoint HMAC export and verification against independent stored
+  anchors, including truncation/rollback tests.
+- These checks use locally generated RSA keys and deterministic mock adapters.
+  **No live cloud integration, operational HA, or production approval is implied.**

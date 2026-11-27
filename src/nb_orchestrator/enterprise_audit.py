@@ -58,7 +58,7 @@ class AuditJournal:
 
     @synchronized
     def append(self, event_type: str, run_ref: str, attributes: dict[str, Any]) -> int:
-        if (event_type not in ("RUN_ADMITTED", "RUN_COMPLETED", "RUN_BLOCKED", "RUN_FAILED")
+        if (event_type not in ("RUN_ADMITTED", "RUN_COMPLETED", "RUN_BLOCKED", "RUN_FAILED", "RUN_RATE_LIMITED")
                 or not isinstance(run_ref, str) or len(run_ref) != 64
                 or not all(c in "0123456789abcdef" for c in run_ref)):
             raise ValueError("invalid audit event")
@@ -108,6 +108,47 @@ class AuditJournal:
             expected += 1
             previous = mac
         return {"valid": True, "count": len(rows), "tip_mac": previous}
+
+    @synchronized
+    def issue_anchor(self) -> dict[str, Any]:
+        """Export a signed checkpoint to keep OUTSIDE this database and host.
+
+        A retained external anchor detects truncation, rollback and edits, as
+        long as the HMAC signing key and external anchor remain protected.
+        """
+        tip = self.verify()
+        payload = {"domain": "UPAOI-AUDIT-ANCHOR-v1", "count": tip["count"],
+                   "tip_mac": tip["tip_mac"]}
+        return {**payload, "anchor_mac": self._mac(payload)}
+
+    @synchronized
+    def verify_anchor(self, anchor: dict[str, Any]) -> dict[str, Any]:
+        if (not isinstance(anchor, dict)
+                or set(anchor) != {"domain", "count", "tip_mac", "anchor_mac"}
+                or anchor.get("domain") != "UPAOI-AUDIT-ANCHOR-v1"
+                or type(anchor.get("count")) is not int or anchor["count"] < 0
+                or any(not isinstance(anchor.get(k), str) or len(anchor[k]) != 64
+                       or any(c not in "0123456789abcdef" for c in anchor[k])
+                       for k in ("tip_mac", "anchor_mac"))):
+            raise AuditIntegrityError("invalid external audit anchor")
+        payload = {k: anchor[k] for k in ("domain", "count", "tip_mac")}
+        if not hmac.compare_digest(anchor["anchor_mac"], self._mac(payload)):
+            raise AuditIntegrityError("external audit anchor authentication failed")
+        state = self.verify()
+        if state["count"] < anchor["count"]:
+            raise AuditIntegrityError("audit sequence rolled back below external anchor")
+        if anchor["count"] == 0:
+            old_tip = "0" * 64
+        else:
+            row = self.connection.execute(
+                "SELECT mac FROM gateway_audit WHERE seq=?", (anchor["count"],)
+            ).fetchone()
+            if row is None:
+                raise AuditIntegrityError("external anchor checkpoint unavailable")
+            old_tip = row[0]
+        if not hmac.compare_digest(old_tip, anchor["tip_mac"]):
+            raise AuditIntegrityError("external anchor does not match audit history")
+        return {**state, "anchored_count": anchor["count"]}
 
     @synchronized
     def close(self) -> None:

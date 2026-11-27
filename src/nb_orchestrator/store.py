@@ -27,6 +27,10 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class RequestConflict(ValueError):
+    """The same authenticated principal reused a request ID for different work."""
+
+
 class Store:
     def __init__(self, path: str | Path = ":memory:") -> None:
         self._lock = threading.RLock()
@@ -78,7 +82,7 @@ class Store:
                     # Do not reveal whether the request exists or belongs to an old schema.
                     raise PermissionError("request id not accessible to this principal")
                 if existing[:3] != (workflow_id, version, spec_digest):
-                    raise ValueError("request ID already belongs to a different workflow or spec")
+                    raise RequestConflict("request ID is already bound to another workflow")
                 return
             self.connection.execute(
                 "INSERT INTO executions (request_id,workflow_id,workflow_version,spec_digest,"
