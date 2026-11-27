@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from uuid import uuid4
 from dataclasses import asdict
 from typing import Any
 from jsonschema import Draft202012Validator, ValidationError, SchemaError
@@ -90,7 +91,7 @@ class Engine:
         if capability.risk != "P0" and capability.id not in self.verifiers:
             raise PolicyDenied("write action needs trusted read-back verification")
 
-    def run(self, workflow: Workflow, *, request_id: str, requested_grants: set[str],
+    def run(self, workflow: Workflow, *, request_id: str, principal_id: str, requested_grants: set[str],
             approvals: set[str] | None = None, execution_scopes: set[str] | None = None) -> ExecutionResult:
         """Resume by request_id; completed steps are reused and never re-invoked."""
         if not request_id or len(request_id)>200:
@@ -98,66 +99,77 @@ class Engine:
         ordered = self.ordered(workflow)
         canonical = json.dumps(asdict(workflow),sort_keys=True,ensure_ascii=False)
         digest = hashlib.sha256(canonical.encode()).hexdigest()
-        self.store.start(request_id,workflow.workflow_id,workflow.version,digest)
+        try:
+            self.store.start(request_id, workflow.workflow_id, workflow.version, digest,
+                             principal_id=principal_id)
+        except PermissionError:
+            # Neither the existence nor outputs of another principal's run leak.
+            return ExecutionResult(request_id, "BLOCKED", {}, "request id not accessible")
         current = self.store.state(request_id)
-        # Authorization must also be checked on replay: a previous read result
-        # may be sensitive and a guessed request_id must never bypass grants.
-        # Guard *all* steps before returning any cached results.
+        # Authorization is evaluated on *every* access, even cached reads.
         try:
             for step in ordered:
                 capability = self.registry.get(step.capability_id)
                 self._check_policy(step, capability, requested_grants=requested_grants,
                                    approvals=approvals or set(), execution_scopes=execution_scopes or set())
         except (PolicyDenied, KeyError) as exc:
-            if not current or current[0] != "COMPLETED":
-                self.store.status(request_id, "BLOCKED", str(exc))
+            # A denied replay must not mutate the original execution's status.
             return ExecutionResult(request_id, "BLOCKED", {}, str(exc))
-        outputs = self.store.outputs(request_id)
         if current and current[0] == "COMPLETED":
-            return ExecutionResult(request_id,"COMPLETED",outputs)
-        # A process can crash after STEP_STARTED and before STEP_FAILED.
-        # Any non-P0 started step without a durable completion is ambiguous.
-        events = self.store.events(request_id)
-        started_writes = {e["step"] for e in events if e["type"] == "STEP_STARTED"
-                          and e["details"].get("risk") != "P0"}
-        if started_writes.difference(outputs):
-            reason = "unfinished consequential step; manual reconciliation required"
-            if not current or current[0] != "BLOCKED" or current[1] != reason:
-                self.store.status(request_id,"BLOCKED",reason)
-            return ExecutionResult(request_id,"BLOCKED",outputs,reason)
-        self.store.status(request_id,"RUNNING")
-        for step in ordered:
-            if step.step_id in outputs:
-                continue
-            try:
-                cap = self.registry.get(step.capability_id)
-                self._check_policy(step,cap,requested_grants=requested_grants,approvals=approvals or set(),execution_scopes=execution_scopes or set())
-                args = self._resolve(step.arguments,outputs,step.depends_on)
-                Draft202012Validator.check_schema(cap.input_schema)
-                Draft202012Validator.check_schema(cap.output_schema)
-                Draft202012Validator(cap.input_schema).validate(args)
-                if cap.id not in self.adapters:
-                    raise PolicyDenied("adapter not registered")
-            except (PolicyDenied,KeyError,ValueError,SchemaError,ValidationError) as e:
-                self.store.emit(request_id,"STEP_BLOCKED",step.step_id,{"reason":str(e)})
-                self.store.status(request_id,"BLOCKED",str(e))
-                return ExecutionResult(request_id,"BLOCKED",outputs,str(e))
-            self.store.emit(request_id,"STEP_STARTED",step.step_id,{"capability":cap.id,"version":cap.version,"risk":cap.risk})
-            try:
-                # This process intentionally contains no implicit network/plugin execution.
-                result = self.adapters[cap.id](args)
-                Draft202012Validator(cap.output_schema).validate(result)
-                if cap.risk != "P0" and not self.verifiers[cap.id](args,result):
-                    raise RuntimeError("trusted post-write read-back failed")
-                # Persist the checkpoint before running any subsequent step.
-                self.store.store_step(request_id,step.step_id,result,verification="schema" if cap.risk=="P0" else "schema+readback")
-                outputs[step.step_id] = result
-            except Exception as e:
-                # Adapters may have performed side effects. Never automatically retry a
-                # failed consequential step; reconciliation must happen outside this runner.
-                self.store.emit(request_id,"STEP_FAILED",step.step_id,{"error_type":type(e).__name__})
-                reason = f"step {step.step_id} failed; reconcile before retry: {type(e).__name__}"
-                self.store.status(request_id,"FAILED",reason)
-                return ExecutionResult(request_id,"FAILED",outputs,reason)
-        self.store.status(request_id,"COMPLETED")
-        return ExecutionResult(request_id,"COMPLETED",outputs)
+            return ExecutionResult(request_id, "COMPLETED", self.store.outputs(request_id))
+        claim_token = uuid4().hex
+        if not self.store.claim(request_id, principal_id=principal_id, token=claim_token):
+            return ExecutionResult(request_id, "BLOCKED", {},
+                                   "request already claimed; operator reconciliation required after a crash")
+        try:
+            outputs = self.store.outputs(request_id)
+            # Crashes after STEP_STARTED on a non-P0 operation are ambiguous.
+            events = self.store.events(request_id)
+            started_writes = {e["step"] for e in events if e["type"] == "STEP_STARTED"
+                              and e["details"].get("risk") != "P0"}
+            if started_writes.difference(outputs):
+                reason = "unfinished consequential step; manual reconciliation required"
+                self.store.status(request_id, "BLOCKED", reason)
+                return ExecutionResult(request_id, "BLOCKED", outputs, reason)
+            self.store.status(request_id, "RUNNING")
+            for step in ordered:
+                if step.step_id in outputs:
+                    continue
+                try:
+                    cap = self.registry.get(step.capability_id)
+                    self._check_policy(step, cap, requested_grants=requested_grants,
+                                       approvals=approvals or set(), execution_scopes=execution_scopes or set())
+                    args = self._resolve(step.arguments, outputs, step.depends_on)
+                    Draft202012Validator.check_schema(cap.input_schema)
+                    Draft202012Validator.check_schema(cap.output_schema)
+                    Draft202012Validator(cap.input_schema).validate(args)
+                    if cap.id not in self.adapters:
+                        raise PolicyDenied("adapter not registered")
+                except (PolicyDenied, KeyError, ValueError, SchemaError, ValidationError) as exc:
+                    # ValidationError.__str__ can contain entire sensitive input payloads.
+                    reason = str(exc) if isinstance(exc, PolicyDenied) else f"step contract rejected: {type(exc).__name__}"
+                    self.store.emit(request_id, "STEP_BLOCKED", step.step_id, {"reason": reason})
+                    self.store.status(request_id, "BLOCKED", reason)
+                    return ExecutionResult(request_id, "BLOCKED", outputs, reason)
+                self.store.emit(request_id, "STEP_STARTED", step.step_id,
+                                {"capability": cap.id, "version": cap.version, "risk": cap.risk,
+                                 "agent": step.agent_id})
+                try:
+                    # Adapter execution occurs only after trusted host-bound grants.
+                    result = self.adapters[cap.id](args)
+                    Draft202012Validator(cap.output_schema).validate(result)
+                    if cap.risk != "P0" and not self.verifiers[cap.id](args, result):
+                        raise RuntimeError("trusted post-write read-back failed")
+                    self.store.store_step(request_id, step.step_id, result,
+                                          verification="schema" if cap.risk == "P0" else "schema+readback")
+                    outputs[step.step_id] = result
+                except Exception as exc:
+                    self.store.emit(request_id, "STEP_FAILED", step.step_id,
+                                    {"error_type": type(exc).__name__})
+                    reason = f"step {step.step_id} failed; reconcile before retry: {type(exc).__name__}"
+                    self.store.status(request_id, "FAILED", reason)
+                    return ExecutionResult(request_id, "FAILED", outputs, reason)
+            self.store.status(request_id, "COMPLETED")
+            return ExecutionResult(request_id, "COMPLETED", outputs)
+        finally:
+            self.store.release(request_id, principal_id=principal_id, token=claim_token)

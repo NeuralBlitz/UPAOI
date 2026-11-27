@@ -1,104 +1,81 @@
-# NeuralBlitz UPAOI — Executable Core MVP v0.2.0
+# NeuralBlitz UPAOI — governed agent orchestration MVP v0.3.0
 
-A **local, permission-aware, deterministic orchestration prototype** implementing part of the NeuralBlitz *Universal Plugin and Agent Orchestration Intelligence* design.
+[![Test UPAOI](https://github.com/NeuralBlitz/UPAOI/actions/workflows/ci.yml/badge.svg)](https://github.com/NeuralBlitz/UPAOI/actions/workflows/ci.yml)
 
-Canonical blueprint: [NeuralBlitz UPAOI](https://app.notion.com/p/41325ca447c181ac82aee167d8fe80fd).
+**UPAOI (Universal Plugin and Agent Orchestration Intelligence)** is a local, permission-aware Python workflow engine for constructing bounded, inspectable multi-agent flows. It currently supports deterministic local specialist handlers and strictly read-only GitHub/Notion REST adapter contracts.
 
-## What is implemented and tested
+**Status: experimental / not production-ready.** This is **not** a hosted autonomous agent platform, does **not** automatically inherit connected ChatGPT plugins, and does **not** dispatch to real LLM workers by default.
 
-- Typed, versioned capability and agent contracts.
-- Capability filtering by tags, risk class, health, explicit grants, and reliability.
-- Deterministic DAG execution with dependency validation and typed step references.
-- Fail-closed policy enforcement for scope, agent grants, schema drift, and P1/P2/P3 approvals.
-- JSON Schema validation at the connector boundary.
-- SQLite request ledger, append-only events, and durable *completed-step* checkpoints.
-- Same request ID + same workflow specification skips completed steps.
-- Required read-back verifier for permitted non-read operations.
-- Zero network access and zero external write calls in the supplied demonstration.
+- [Canonical architecture blueprint](https://app.notion.com/p/41325ca447c181ac82aee167d8fe80fd)
+- [GitHub repository](https://github.com/NeuralBlitz/UPAOI)
+- [Integration limitations](docs/integration-plan.md)
+- [Security and trust boundaries](docs/security.md)
+- [Agent handoff contract](docs/agent-handoffs.md)
 
-## New in v0.2.0 — safe provider integration slice
+## Implemented capabilities
 
-- Two strictly **read-only** REST adapters: a GitHub repository metadata reader and a Notion page metadata / bounded first-level block reader.
-- Explicit allowlists for permitted GitHub repositories and Notion pages, with separate runtime environment credentials.
-- Host-restricted HTTPS transport with disabled redirects, timeouts and response-size bounds.
-- Three-step integration DAG (GitHub -> Notion -> provenance manifest); each read has a schema-pinned capability contract.
-- Health snapshot covering 88 observed integrations, stored as **historical observations**, never executable grants.
-- Additional tests for access controls, prompt-injection isolation, cached-output authorization and crash-after-start quarantine.
-- CI workflow for Python 3.10, 3.12 and 3.13; see `docs/architecture.md` and `docs/repository-bootstrap.md`.
+- Version-pinned capability registry, risk classification, scopes, health checks and deterministic matching.
+- Explicit agent capability allowlists intersected with per-workflow grants; unknown tools are denied by default.
+- Dependency-validated DAG execution and structured references to completed step outputs (no `eval`).
+- JSON Schema validation at input/output boundaries; errors sanitized before audit logging.
+- SQLite checkpoints and event history, request/spec digest reuse, and quarantine of unfinished consequential operations.
+- **v0.3:** Request IDs bound to a specified principal; completed results cannot be replayed under another principal, even if the caller knows their request ID.
+- **v0.3:** Atomic SQLite execution claims prevent two local workers from invoking the same unfinished request at once. Claims have **no automatic expiration**: a process crash may require trusted operator investigation before replay.
+- **v0.3:** Bounded, JSON-only specialist handoff packets with explicit objective, source references, data classification, acceptance criteria, immutable worker contracts and a separately registered reviewer.
+- **v0.3:** Executable two-specialist local workflow (`analyst -> auditor`) with provenance and reviewer decisions. These workers are deterministic host callbacks, **not autonomous LLM agents**.
+- Read-only, explicit allowlisted GitHub repository and Notion page REST adapters with scoped operator-provided credentials (not ChatGPT plugin credentials).
+- CI test matrix covering Python 3.10, 3.12 and 3.13.
 
-### Test and run
-
-```bash
-python -m pip install -e .
-python -m unittest discover -s tests -v
-upaoi demo --db ./sandbox.sqlite
-upaoi health --inventory data/plugin-health-2026-11-22.json
-upaoi sources --fixture --repo NeuralBlitz/AgentOS \
-  --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd \
-  --db ./fixture-sources.sqlite
-```
-
-To attempt **live read-only API calls** after obtaining separate least-privilege credentials:
-
-```bash
-export UPAOI_GITHUB_TOKEN="..." # optional for public GitHub repositories
-export UPAOI_NOTION_TOKEN="..." # mandatory for Notion REST
-upaoi sources --repo NeuralBlitz/AgentOS \
-  --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd \
-  --db ./sources.sqlite --request-id demo-sources-001
-```
-
-The source adapter uses the official GitHub REST repository endpoint and the Notion page/children endpoints. It does **not** directly inherit ChatGPT plugin authentication. The `sources` command is an example, not a claim that a token has been supplied or that a live call was performed.
-
-## What is NOT implemented
-
-- No direct access to ChatGPT's connected plugin tokens from standalone Python. Separate GitHub/Notion REST read adapters exist, but an authenticated deployment gateway is still required.
-- No LLM-based intent parsing or autonomous agent reasoning; the registry scores *provided* tags only.
-- No job queue, distributed lock, concurrent execution, cancellation, secrets broker, interactive approval UI, multi-tenant RBAC, credential-scoped container sandbox, cost tracking, or production telemetry.
-- The demo verifier checks an output *schema and content only*; it is not independent evidence for real-world claims.
-- No automatic retry of failed steps with potential side effects. A failed write requires manual reconciliation before resuming.
-- This is **not production ready**.
-
-## Run it
+## Install and test
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 python -m unittest discover -s tests -v
-python -m nb_orchestrator.cli demo --db ./local-demo.sqlite
+upaoi demo --db ./sandbox.sqlite
+upaoi agents --db ./agents.sqlite --principal-id local-operator
+upaoi health --inventory data/plugin-health-2026-11-22.json
 ```
 
-The demo performs a 3-step workflow using **local, fake adapters**: `read_text -> summarize -> verify`. Repeat the command with the same DB and request ID to observe checkpoint reuse (no adapter re-execution).
+`--principal-id` is a local **label**, not authentication. A future trusted gateway must derive principal identity from verified sessions, never from an untrusted request field.
 
-## Safety boundaries
+Run a reproducible **synthetic** GitHub/Notion fixture without live network access:
 
-P0 = read-only. P1 = internal writes. P2 = consequential external actions. P3 = destructive/admin/production operations. P1/P2/P3 are denied unless the caller **explicitly lists the approved capability ID**; they also require idempotency and a trusted post-write verifier. These are per-invocation approvals, *not a user approval service*.
+```bash
+upaoi sources --fixture \
+  --repo NeuralBlitz/UPAOI \
+  --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd \
+  --db fixture.sqlite --request-id fixture-001
+```
 
-This engine is intended to be called from an authenticated host after validating a trusted user approval token. Never derive `approvals` or `requested_grants` from untrusted retrieved documents or model outputs. Never expose the adapter dispatch method to arbitrary generated Python code.
+For separately provisioned read-only provider credentials, see `.env.example` and [the integration plan](docs/integration-plan.md). These integrations are **not** automatically authenticated by the connected ChatGPT GitHub or Notion applications.
 
-### Important crash boundary
+## Agent handoffs
 
-SQLite checkpoints protect *completed* steps. A crash after an external write but before its checkpoint may leave ambiguous state; the prototype does **not** automatically resolve this. Production support requires provider idempotency keys and a durable write-intent/outbox plus provider read-back reconciliation.
+A trusted host registers an explicit specialist contract (agent ID, version, input/output schema, permitted source references and size quotas), a callable handler and a separate reviewer. The caller must supply a permitted specialist, permitted source references and permitted data classification. A valid source document **cannot grant itself new tools**, and a reviewer's acceptance **cannot authorize a write operation**.
 
-## Layout
+Use `upaoi agents` to exercise the two-step pipeline and inspect accepted outputs. See [docs/agent-handoffs.md](docs/agent-handoffs.md) for the full contract and sample usage.
 
-- `src/nb_orchestrator/models.py` — contracts
-- `src/nb_orchestrator/registry.py` — registry and routing
-- `src/nb_orchestrator/engine.py` — plan validation and executor
-- `src/nb_orchestrator/store.py` — durable state and event history
-- `src/nb_orchestrator/cli.py` — local workflow demonstration
-- `tests/test_engine.py` — security and reliability regression tests
-- `docs/integration-plan.md` — next steps for plugin gateway and deployment
+## Safety boundaries and limitations
 
-## Source control and review
+- `P0` read operations have explicit grants and scope checks. `P1/P2/P3` operations additionally require approval IDs, idempotency and a trusted verifier, but these inputs are **not cryptographic approval receipts**. **Do not expose such operations in a public API.**
+- `principal_id` is a trusted host assertion in the Python API, not an authentication system. A public web service must derive it from verified identity and enforce tenant isolation at all resource boundaries.
+- Exclusive SQLite claims prevent concurrent attempts in the same shared database. They are not distributed fencing tokens or a queue; an abandoned claim is **not** automatically reset or stolen.
+- Legacy pre-v0.3 request rows without a principal remain inaccessible until an operator performs a deliberate, audited migration; new databases are preferred for local demos.
+- SQLite state is not encrypted, cryptographically immutable, or multi-tenant hardened. Treat local DB files as sensitive.
+- Reviewers in the demo validate deterministic output contracts, not external factual truth or source credibility.
+- No real specialist-model dispatch, durable queue, secure approvals, external-action outbox, multi-tenant RBAC, credential vault, hosted runtime, telemetry service, or production deployment exists yet.
 
-The dedicated private repository is [`NeuralBlitz/UPAOI`](https://github.com/NeuralBlitz/UPAOI). The implementation is proposed on the `feat/bootstrap-upaoi-v0.2.0` development branch for review against `main`. **A branch or pull request is not a production deployment.** See `docs/repository-bootstrap.md` for setup and review procedures.
+## Development workflow
 
-## Next engineering gates
+`main` contains the reviewed v0.2 bootstrap. Improvements are proposed on new branches and verified through CI before merging. Do not merge into `main` or deploy production changes without explicit authorization.
 
-1. Authenticated gateway for 2 read-only plugins (GitHub repository metadata + Notion source retrieval).
-2. Formal policy decision point and independent authorization evidence; no user-input-only `approvals`.
-3. Durable outbox and reconciliation protocol before any external writes.
-4. Integration contract tests, negative security tests, and secrets management.
-5. Host the runtime with persistent storage and queue, then add observability and controlled fallbacks.
+## Repository layout
+
+- `src/nb_orchestrator/engine.py`, `store.py`: policy, execution, principals, exclusive claims, checkpoints.
+- `src/nb_orchestrator/agent_runtime.py`: bounded specialist contracts and dispatch.
+- `src/nb_orchestrator/agent_workflow.py`: two-specialist local demonstration.
+- `src/nb_orchestrator/providers.py`: read-only GitHub/Notion provider adapters.
+- `tests/`: regression and security tests.
+- `docs/`: architecture, integration, agent and security documentation.

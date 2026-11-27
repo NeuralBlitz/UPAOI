@@ -25,14 +25,18 @@ def demo(db: str) -> dict:
         Step("verify","sandbox.verify","1","verifier",{"text":{"$ref":"summarize.text"}},("summarize",)),
     ))
     store=Store(db)
-    response=Engine(reg,store,agents,adapters).run(workflow,request_id="demo-001",requested_grants=set(adapters))
-    return {"status":response.status,"outputs":response.outputs,"reason":response.reason,"events":store.events("demo-001")}
+    try:
+        response=Engine(reg,store,agents,adapters).run(workflow,request_id="demo-001",principal_id="local-cli",requested_grants=set(adapters))
+        return {"status":response.status,"outputs":response.outputs,"reason":response.reason,"events":store.events("demo-001")}
+    finally:
+        store.connection.close()
 
 
 def main() -> None:
     p=argparse.ArgumentParser(description="NeuralBlitz UPAOI local prototype")
-    p.add_argument("command",choices=["demo","sources","health"])
+    p.add_argument("command",choices=["demo","agents","sources","health"])
     p.add_argument("--db",default=":memory:")
+    p.add_argument("--principal-id",default="local-cli",help="Operator-scoped local identity label; NOT authentication")
     p.add_argument("--request-id",default="sources-001")
     p.add_argument("--repo",help="Explicit allowed GitHub owner/repository for read-only source collection")
     p.add_argument("--page-id",help="Explicit allowed Notion page UUID for read-only collection")
@@ -41,6 +45,9 @@ def main() -> None:
     args=p.parse_args()
     if args.command=="demo":
         print(json.dumps(demo(args.db),indent=2,ensure_ascii=False))
+    elif args.command=="agents":
+        from .agent_workflow import demo_agents
+        print(json.dumps(demo_agents(args.db,principal_id=args.principal_id),indent=2,ensure_ascii=False))
     elif args.command=="health":
         from .health import HealthSnapshot
         snapshot=HealthSnapshot.from_file(args.inventory)
@@ -58,7 +65,7 @@ def main() -> None:
             readers = fixture_readers(args.repo,args.page_id)
             options = {"github_reader":readers[0],"notion_reader":readers[1]}
             request_id = "fixture-" + request_id
-        result = run_read_only_sources(args.db, request_id=request_id,
+        result = run_read_only_sources(args.db, request_id=request_id,principal_id=args.principal_id,
                      repo=args.repo, page_id=args.page_id,**options)
         result["mode"] = "synthetic_fixture" if args.fixture else "live_read_only"
         print(json.dumps(result,indent=2,ensure_ascii=False))

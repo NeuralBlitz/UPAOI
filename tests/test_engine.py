@@ -30,8 +30,8 @@ class EngineTests(unittest.TestCase):
     def engine(self,verifiers=None, agents=None):
         return Engine(self.registry,self.store,agents or {"agent":self.agent},self.adapters,verifiers)
 
-    def execute(self,workflow=None,request_id="test",grants=None,approvals=None):
-        return self.engine().run(workflow or Workflow("testflow","1",(self.step,)),request_id=request_id,
+    def execute(self,workflow=None,request_id="test",principal_id="local-test",grants=None,approvals=None):
+        return self.engine().run(workflow or Workflow("testflow","1",(self.step,)),request_id=request_id,principal_id="local-test",
                                  requested_grants={"fake.read"} if grants is None else grants,approvals=approvals)
 
     def test_success_and_event_ledger(self):
@@ -56,7 +56,7 @@ class EngineTests(unittest.TestCase):
 
     def test_agent_cannot_escalate(self):
         r=self.engine(agents={"agent":Agent("agent",frozenset())}).run(
-            Workflow("t","1",(self.step,)),request_id="escalate",requested_grants={"fake.read"})
+            Workflow("t","1",(self.step,)),request_id="escalate",principal_id="local-test",requested_grants={"fake.read"})
         self.assertEqual(r.status,"BLOCKED")
         self.assertEqual(self.calls,[])
 
@@ -115,17 +115,18 @@ class EngineTests(unittest.TestCase):
         agent=Agent("agent",frozenset({"fake.write"}))
         workflow=Workflow("write","1",(Step("w","fake.write","1","agent",{"x":"hello"}),))
         engine=Engine(self.registry,self.store,{"agent":agent},self.adapters)
-        a=engine.run(workflow,request_id="write",requested_grants={"fake.write"})
+        a=engine.run(workflow,request_id="write",principal_id="local-test",requested_grants={"fake.write"})
         self.assertEqual(a.status,"BLOCKED")
-        b=engine.run(workflow,request_id="write",requested_grants={"fake.write"},approvals={"fake.write"})
+        b=engine.run(workflow,request_id="write",principal_id="local-test",requested_grants={"fake.write"},approvals={"fake.write"})
         self.assertEqual(b.status,"BLOCKED")
         good=Engine(self.registry,self.store,{"agent":agent},self.adapters,{"fake.write":lambda args,result:result["y"]=="created"})
-        c=good.run(workflow,request_id="write",requested_grants={"fake.write"},approvals={"fake.write"})
+        c=good.run(workflow,request_id="write",principal_id="local-test",requested_grants={"fake.write"},approvals={"fake.write"})
         self.assertEqual(c.status,"COMPLETED")
 
     def test_persistent_resume_skips_checkpoint(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/"flow.db"
+            self.store.connection.close()
             self.store=Store(path)
             state={"fail":True}
             def maybe_fail(a):
@@ -138,13 +139,13 @@ class EngineTests(unittest.TestCase):
             step2=Step("second","fake.read2","1","agent",{"x":{"$ref":"first.y"}},("first",))
             w=Workflow("resumable","1",(self.step,step2))
             engine=Engine(self.registry,self.store,{"agent":agent},self.adapters)
-            first=engine.run(w,request_id="resume",requested_grants={"fake.read","fake.read2"})
+            first=engine.run(w,request_id="resume",principal_id="local-test",requested_grants={"fake.read","fake.read2"})
             self.assertEqual(first.status,"FAILED")
             self.assertEqual(len(self.calls),1)
             state["fail"]=False
             self.store.connection.close()
             new_store=Store(path)
-            second=Engine(self.registry,new_store,{"agent":agent},self.adapters).run(w,request_id="resume",requested_grants={"fake.read","fake.read2"})
+            second=Engine(self.registry,new_store,{"agent":agent},self.adapters).run(w,request_id="resume",principal_id="local-test",requested_grants={"fake.read","fake.read2"})
             self.assertEqual(second.status,"COMPLETED")
             self.assertEqual(len(self.calls),1)
             new_store.connection.close()
@@ -160,11 +161,11 @@ class EngineTests(unittest.TestCase):
         w=Workflow("w","1",(Step("w","fake.write","1","agent",{"x":"hello"}),))
         eng=Engine(self.registry,self.store,{"agent":agent},self.adapters,{
             "fake.write":lambda args,result:True})
-        first=eng.run(w,request_id="danger",requested_grants={"fake.write"},approvals={"fake.write"})
+        first=eng.run(w,request_id="danger",principal_id="local-test",requested_grants={"fake.write"},approvals={"fake.write"})
         self.assertEqual(first.status,"FAILED")
-        second=eng.run(w,request_id="danger",requested_grants={"fake.write"},approvals={"fake.write"})
+        second=eng.run(w,request_id="danger",principal_id="local-test",requested_grants={"fake.write"},approvals={"fake.write"})
         self.assertEqual(second.status,"BLOCKED")
-        third=eng.run(w,request_id="danger",requested_grants={"fake.write"},approvals={"fake.write"})
+        third=eng.run(w,request_id="danger",principal_id="local-test",requested_grants={"fake.write"},approvals={"fake.write"})
         self.assertEqual(third.status,"BLOCKED")
         self.assertEqual(side_effects,["external_effect"])
 
@@ -196,13 +197,13 @@ class ReplayAuthorizationTests(unittest.TestCase):
     def tearDown(self):self.store.connection.close()
 
     def test_completed_request_cannot_be_replayed_without_current_scopes(self):
-        a=self.engine.run(self.flow,request_id="scope1",requested_grants={"secure.read"},execution_scopes={"secure:read"})
+        a=self.engine.run(self.flow,request_id="scope1",principal_id="local-test",requested_grants={"secure.read"},execution_scopes={"secure:read"})
         self.assertEqual(a.status,"COMPLETED")
-        b=self.engine.run(self.flow,request_id="scope1",requested_grants={"secure.read"},execution_scopes=set())
+        b=self.engine.run(self.flow,request_id="scope1",principal_id="local-test",requested_grants={"secure.read"},execution_scopes=set())
         self.assertEqual(b.status,"BLOCKED")
         self.assertEqual(b.outputs,{})
         self.assertEqual(self.calls,1)
-        c=self.engine.run(self.flow,request_id="scope1",requested_grants={"secure.read"},execution_scopes={"secure:read"})
+        c=self.engine.run(self.flow,request_id="scope1",principal_id="local-test",requested_grants={"secure.read"},execution_scopes={"secure:read"})
         self.assertEqual(c.status,"COMPLETED")
 
     def test_unfinished_write_is_quarantined_after_crash(self):
@@ -218,10 +219,10 @@ class ReplayAuthorizationTests(unittest.TestCase):
         import json
         from dataclasses import asdict
         digest=sha256(json.dumps(asdict(flow),sort_keys=True,ensure_ascii=False).encode()).hexdigest()
-        self.store.start("crash1","write","1",digest)
+        self.store.start("crash1","write","1",digest,principal_id="local-test")
         self.store.emit("crash1","STEP_STARTED","write1",{"risk":"P1"})
         self.store.status("crash1","RUNNING")
-        result=eng.run(flow,request_id="crash1",requested_grants={"secure.write"},
+        result=eng.run(flow,request_id="crash1",principal_id="local-test",requested_grants={"secure.write"},
                        approvals={"secure.write"},execution_scopes={"secure:write"})
         self.assertEqual(result.status,"BLOCKED")
         self.assertFalse(attempts)

@@ -1,40 +1,37 @@
-# UPAOI MVP v0.2.0 — validation checkpoint
+# UPAOI MVP v0.3.0 — validation checkpoint
 
-Date: 2026-11-22 (America/Chicago)
+Date: 2026-11-27 (America/Chicago)
 
-## Reproducible commands
+## Commands
 
 ```bash
-python -m pip install --no-build-isolation --no-deps -e .
-python -m unittest discover -s tests -v
-upaoi demo --db local-demo.sqlite
-upaoi sources --fixture --repo NeuralBlitz/AgentOS --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd --db fixture-sources.sqlite
-upaoi health --inventory data/plugin-health-2026-11-22.json
+PYTHONPATH=src python -m unittest discover -s tests -v
+PYTHONPATH=src python -m nb_orchestrator.cli demo --db :memory:
+PYTHONPATH=src python -m nb_orchestrator.cli agents --db :memory:
+python -m compileall -q src
 ```
 
-## Recorded results in local execution container
+## Local execution evidence
 
-- **31 / 31 unit tests passed**; all use mock provider transports or local adapters rather than live connector credentials.
-- **Local demo:** COMPLETED, 3 steps, 9 ledger events.
-- **Synthetic GitHub+Notion source workflow:** COMPLETED, 3 steps, 9 ledger events. Marked `mode: synthetic_fixture`.
-- **Historical plugin inventory:** 88 records loaded (73 read-only responses, 5 blocked, 10 untested). Not proof of complete feature health.
-- **Editable install:** succeeded with an already-installed build backend and dependencies; build-isolated clean installation was not tested.
+- **56/56 unit tests passed** in the source-tree environment (Python 3.13).
+- Core DAG demo: `COMPLETED`, three deterministic local steps, 9 events.
+- Two-specialist demo: `COMPLETED`, two separate registered workers plus reviewer callbacks, 7 events.
+- Existing provider contract and synthetic GitHub/Notion fixture tests remain passing.
 
-## Negative tests
+### New security regressions
 
-- Unauthorized GitHub/Notion identifiers rejected before HTTP call.
-- Malformed repository path rejected.
-- Incorrect provider identity rejected.
-- Missing Notion token rejected.
-- Provider output is projected into a strict response schema; prompt-like text remains data.
-- Cached response cannot be returned without **current** capability grants and scopes.
-- Started-but-incomplete write is quarantined even if process crash prevented a failure event.
-- Existing tests still cover request-ID collision, DAG cycles, declared references, schema drift, output validation, resumed reads, and idempotent completed replays.
+- Principal A cannot replay principal B's completed request by guessing its request ID.
+- Denied requests do not alter another run's completed status.
+- Two live workers targeting the same unfinished request cannot both execute its adapter against the same SQLite database.
+- An abandoned process claim is fail-closed, not automatically stolen.
+- Legacy principal-less SQLite request rows cannot be replayed by arbitrary principals.
+- Schema validation failures do not log full secret-bearing input payloads.
+- Specialist workers cannot expand source references or classification scopes, bypass schema limits, mutate caller payloads, or approve their own result by claiming a reviewer identity.
 
-## Explicit non-claims
+## Explicit nonclaims
 
-- Live Github/Notion REST integration calls have **not** been performed by the standalone Python program. Connected ChatGPT GitHub/Notion plugins were inspected separately, not called by the Python runtime.
-- GitHub repository `NeuralBlitz/UPAOI` is **not created**; browser login required and current GitHub plugin exposes no repository-create tool.
-- GitHub Actions CI configuration is present but **not executed** until pushed to a repository.
-- No server, queue, trust-broker, production API, deployment, independent claim verification, distributed transaction or agent LLM planner was constructed.
-- Additional security review and real-provider integration tests are mandatory before production.
+- Tests use local callbacks and mocked provider responses, not live LLM agents or live provider credentials.
+- SQLite-exclusive claims are local to a shared database. They are **not** distributed fencing tokens or safe automatic crash recovery.
+- `principal_id` does not authenticate an Internet user; only a trusted host may establish the caller's identity.
+- Code is not yet merged into `main`, deployed, or accepted as production ready.
+- GitHub-hosted CI for this commit remains unverified until the branch is pushed and the new workflow runs.
