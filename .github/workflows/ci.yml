@@ -23,3 +23,5 @@ jobs:
       - name: Local specialist demo smoke test
         run: |
           python -m nb_orchestrator.cli agents --db :memory:
+      - name: Compile Python modules
+        run: python -m compileall -q src tests

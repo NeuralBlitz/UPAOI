@@ -36,9 +36,10 @@ def demo(db: str) -> dict:
 
 def main() -> None:
     p=argparse.ArgumentParser(description="NeuralBlitz UPAOI local prototype")
-    p.add_argument("command",choices=["demo","agents","sources","health","audit-verify"])
+    p.add_argument("command",choices=["demo","agents","sources","health","audit-verify","audit-anchor"])
     p.add_argument("--db",default=":memory:")
-    p.add_argument("--audit-db",help="Existing gateway audit SQLite file (audit-verify only)")
+    p.add_argument("--audit-db",help="Existing gateway audit SQLite file")
+    p.add_argument("--anchor-file",help="External signed anchor JSON (audit-verify only)")
     p.add_argument("--principal-id",default="local-cli",help="Operator-scoped local identity label; NOT authentication")
     p.add_argument("--request-id",default="sources-001")
     p.add_argument("--repo",help="Explicit allowed GitHub owner/repository for read-only source collection")
@@ -57,10 +58,10 @@ def main() -> None:
         print(json.dumps({"date":snapshot.date,"observations":len(snapshot.entries),
                           "counts":snapshot.counts(),"blocked":snapshot.blocked(),
                           "warning":"These are historical probes, not live access grants."},indent=2))
-    elif args.command=="audit-verify":
+    elif args.command in ("audit-verify", "audit-anchor"):
         from .enterprise_audit import AuditJournal, AuditIntegrityError
         if not args.audit_db or not Path(args.audit_db).is_file():
-            p.error("audit-verify requires --audit-db referring to an existing database file")
+            p.error("audit verification/anchoring requires an existing --audit-db")
         encoded=os.environ.get("UPAOI_AUDIT_KEY_HEX", "")
         try:
             key=bytes.fromhex(encoded)
@@ -70,12 +71,19 @@ def main() -> None:
             p.error("UPAOI_AUDIT_KEY_HEX signing key must be at least 32 bytes")
         audit=AuditJournal(args.audit_db,signing_key=key)
         try:
-            verified=audit.verify()
-        except AuditIntegrityError:
+            if args.command == "audit-anchor":
+                verified=audit.issue_anchor()
+            elif args.anchor_file:
+                verified=audit.verify_anchor(json.loads(Path(args.anchor_file).read_text()))
+            else:
+                verified=audit.verify()
+        except (AuditIntegrityError, ValueError, OSError):
             p.error("audit chain integrity check failed; halt admission and investigate")
         finally:
             audit.close()
         print(json.dumps(verified,indent=2))
+        # Preserve audit-anchor output on an independent protected system;
+        # a local file on the same host does not provide rollback detection.
     elif args.command=="sources":
         if not args.repo or not args.page_id:
             p.error("sources requires --repo OWNER/REPO and --page-id NOTION_UUID")
