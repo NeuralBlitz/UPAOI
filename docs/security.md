@@ -30,3 +30,21 @@ The optional ASGI pilot admission layer authenticates **RS256 JWTs against opera
 A separate HMAC-linked SQLite gateway-admission journal detects modifications to retained rows with an uncompromised signing key, but **does not detect deleted suffixes, full database rollback or key theft** without independently anchored receipts. Neither this journal nor SQLite is a certified, immutable enterprise audit service.
 
 `Store` and `AuditJournal` connections support ASGI worker threads with local per-connection locks; they do not provide multi-node fencing, distributed transactions, or production SLAs. See [enterprise pilot](enterprise-pilot.md), [runbook](enterprise-runbook.md) and [product milestones](product-milestones.md).
+
+
+## v0.4.1 additions: admission, audit anchoring and resource limits
+
+- A separate SQLite admission ledger enforces per-tenant and per-principal fixed
+  windows transactionally. It stores only SHA-256 digests derived from verified
+  claims. It is not network protection, a global distributed limiter or a
+  substitute for a reverse proxy WAF/rate limiter.
+- Authenticated request ID collisions must return 409 without adapter execution
+  or cached outputs. Attempts to reuse another principal's ID remain denied.
+- The audit chain's HMAC-authenticated checkpoint must be exported to a *different*
+  administrative trust domain. If both the database and the last anchor are
+  rolled back, local integrity checking alone cannot detect the rollback.
+- `/health/ready` checks local audit integrity but is not a complete identity
+  provider, connector, TLS, quota or external-service health check.
+- Endpoint execution uses ASGI threadpool; this does not impose provider
+  execution deadlines, cancel in-flight I/O or create fenced distributed leases.
+- All external mutations remain out of scope for v0.4.1.

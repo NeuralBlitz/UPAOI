@@ -1,4 +1,4 @@
-# NeuralBlitz UPAOI — governed agent orchestration Enterprise Pilot Candidate v0.4.0
+# NeuralBlitz UPAOI — governed agent orchestration Enterprise Pilot Candidate v0.4.1
 
 [![Test UPAOI](https://github.com/NeuralBlitz/UPAOI/actions/workflows/ci.yml/badge.svg)](https://github.com/NeuralBlitz/UPAOI/actions/workflows/ci.yml)
 
@@ -90,3 +90,73 @@ Use `upaoi agents` to exercise the two-step pipeline and inspect accepted output
 - `src/nb_orchestrator/providers.py`: read-only GitHub/Notion provider adapters.
 - `tests/`: regression and security tests.
 - `docs/`: architecture, integration, agent and security documentation.
+
+
+## Enterprise admission and externally anchored auditing (v0.4.1)
+
+The opt-in enterprise gateway includes **fixed-window quotas enforced inside SQLite
+transactions** for both the verified tenant and verified principal. A denied
+request returns HTTP 429 with a bounded `Retry-After`, without invoking the
+workflow. Every attempt, including a cached replay, consumes admission budget.
+This protects internal-alpha execution capacity; it is **not** DDoS protection.
+Use independent TLS ingress rate limits and a shared multi-node quota service
+before a production launch.
+
+For the environment-configured gateway, `UPAOI_ADMISSION_DB` is **required**
+and must point to a distinct durable SQLite file. This intentional internal-alpha
+configuration gate fails startup if the admission ledger is omitted.
+Limits default to `UPAOI_TENANT_REQUESTS_PER_MIN=100` and
+`UPAOI_PRINCIPAL_REQUESTS_PER_MIN=25`. These defaults must be benchmarked;
+invalid settings fail startup. The app stores only hashed principal/tenant IDs
+in the quota database.
+
+`GET /health/ready` verifies the audit chain and local execution/admission
+connections and returns 503 on failure; `/health/live` remains a minimal process
+liveness endpoint. The asynchronous HTTP route delegates blocking execution to
+a thread pool to keep the ASGI event loop responsive.
+
+To export a signed checkpoint for an **independent, access-controlled store**:
+
+```bash
+UPAOI_AUDIT_KEY_HEX=... upaoi audit-anchor --audit-db /var/lib/upaoi/gateway-audit.db > anchor.json
+UPAOI_AUDIT_KEY_HEX=... upaoi audit-verify --audit-db /var/lib/upaoi/gateway-audit.db --anchor-file anchor.json
+```
+
+The anchor is only useful against rollback when retained outside the host,
+backed by an independently controlled retention policy, and protected from the
+signing-key holder. See `docs/internal-alpha-gates.md`. No cloud anchor, IdP
+registration or live external connector smoke test is included in this build.
+
+
+## M3 read-only identity/provider preflight (v0.4.3)
+
+A synthetic smoke test is safe to run without any credentials:
+
+```bash
+upaoi preflight --fixture --repo NeuralBlitz/UPAOI --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd
+```
+
+This returns `SIMULATED_ONLY` and **must not** be described as a live provider
+success. For a deliberately configured real smoke test, an operator must supply
+`UPAOI_OIDC_ISSUER`, `UPAOI_OIDC_AUDIENCE`, `UPAOI_OIDC_JWKS_JSON`,
+`UPAOI_TENANT_ID`, `UPAOI_OIDC_TEST_ACCESS_TOKEN`, `UPAOI_ALLOWED_REPO`,
+`UPAOI_ALLOWED_NOTION_PAGE`, `UPAOI_GITHUB_TOKEN` and `UPAOI_NOTION_TOKEN`
+through a protected runtime secret manager. Then run `upaoi preflight` without
+CLI-supplied resource flags. It verifies the bearer token against operator-pinned
+JWKS, enforces tenant and two read scopes, and performs only allowlisted GET
+operations. The receipt intentionally omits source text, token claims, API
+responses and credential material. It is **not** a penetration test or an
+enterprise product release certificate. See `docs/m3-preflight.md`.
+
+## M3.1 Operational-integrity improvements (v0.4.3)
+
+The opt-in pilot can require an operator-retained HMAC audit checkpoint at
+startup and before each read-only request. A missing or forged anchor, or
+rollback of previously anchored events, fails closed (HTTP 503) without provider
+execution. The enterprise factory additionally rejects physically aliased
+SQLite execution/audit/quota database paths. See
+[operational integrity](docs/operational-integrity.md) for limitations and tests.
+
+**Neither code-level enforcement nor an on-host file establishes independent
+audit retention.** Real operator-managed storage, credential lifecycle, live
+provider verification and production threat-model review remain outstanding.

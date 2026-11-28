@@ -9,7 +9,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, ValidationError, SchemaError
 from .models import Adapter, Agent, Capability, ExecutionResult, Step, Verifier, Workflow
 from .registry import Registry
-from .store import Store
+from .store import Store, RequestConflict
 
 
 class PolicyDenied(Exception):
@@ -105,6 +105,8 @@ class Engine:
         except PermissionError:
             # Neither the existence nor outputs of another principal's run leak.
             return ExecutionResult(request_id, "BLOCKED", {}, "request id not accessible")
+        except RequestConflict:
+            return ExecutionResult(request_id, "BLOCKED", {}, "request identifier conflicts with prior work")
         current = self.store.state(request_id)
         # Authorization is evaluated on *every* access, even cached reads.
         try:
