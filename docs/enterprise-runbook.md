@@ -58,3 +58,29 @@ python -m nb_orchestrator.cli audit-verify --audit-db /secure/path/gateway-audit
 ```
 
 The command rejects missing files or corrupted historic rows and prints the validated count and MAC tip. Back up and independently anchor that tip and sequence in a separate trust domain. **An unanchored deleted suffix cannot be detected by the local-only check.**
+
+
+## v0.4.1 admission-ledger upgrade checklist
+
+Before starting the environment factory, configure a **third distinct durable**
+SQLite file with `UPAOI_ADMISSION_DB=/var/lib/upaoi/admission.sqlite`.
+The variable is mandatory for this pilot; if unset or if it aliases the
+execution/audit database, startup intentionally fails closed. Back up this
+ledger and restrict its filesystem permissions under the service identity.
+
+Optional policy ceilings are `UPAOI_TENANT_REQUESTS_PER_MIN=100` and
+`UPAOI_PRINCIPAL_REQUESTS_PER_MIN=25`; a tenant limit must be at least the
+principal limit. These values are prototype defaults, not production SLAs.
+A 429 response includes a short `Retry-After`. A 409 is a request-ID collision or
+a blocked execution and must not trigger an automatic write retry.
+
+Use `upaoi audit-anchor --audit-db ...` to export a signed checkpoint and
+**retain it externally**, away from the application host and audit key holder.
+Use `upaoi audit-verify --audit-db ... --anchor-file ...` to detect deletion or
+rollback of records predating that checkpoint. Do not claim the host is
+independently anchored until that external storage and verification have
+actually been configured and tested.
+
+For ingress readiness, `GET /health/ready` tests local integrity and SQLite
+health only. Continue to use the original runbook for TLS, secret management,
+egress policy and independent IdP/provider integration smoke tests.

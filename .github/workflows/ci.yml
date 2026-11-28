@@ -12,8 +12,8 @@ jobs:
       matrix:
         python-version: ['3.10', '3.12', '3.13']
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install project
@@ -23,3 +23,8 @@ jobs:
       - name: Local specialist demo smoke test
         run: |
           python -m nb_orchestrator.cli agents --db :memory:
+      - name: Compile Python modules
+        run: python -m compileall -q src tests
+      - name: Synthetic M3 provider preflight (offline)
+        run: |
+          python -m nb_orchestrator.cli preflight --fixture --repo NeuralBlitz/UPAOI --page-id 41325ca4-47c1-81ac-82ae-e167d8fe80fd
